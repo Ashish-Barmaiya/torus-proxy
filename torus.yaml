@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+routes:
+  - path: /api
+    upstream: api_backend
+  - path: /auth
+    upstream: auth_backend
+  - path: /
+    upstream: default_backend
+
+upstreams:
+  - name: api_backend
+    servers:
+      - host: 127.0.0.1
+        port: 3001
+      - host: 127.0.0.1
+        port: 3002
+        
+  - name: auth_backend
+    servers:
+      - host: 127.0.0.1
+        port: 3003
+        
+  - name: default_backend
+    servers:
+      - host: 127.0.0.1
+        port: 3001 # Reusing ports for testing

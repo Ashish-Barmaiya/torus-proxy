@@ -14,7 +14,11 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^25.3.5",
+    "@types/yaml": "^1.9.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "yaml": "^2.8.2"
   }
 }

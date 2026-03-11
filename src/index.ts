@@ -1,12 +1,8 @@
 import cluster from "node:cluster";
 import * as os from "node:os";
-import { Router } from "./routing/router.js";
-import { BackendPool } from "./routing/pool.js";
-import { BackendServer } from "./routing/backend.js";
-import { RoundRobinStrategy } from "./routing/roundRobin.js";
+import * as path from "node:path";
 import { ProxyServer } from "./proxy/server.js";
-
-const PORT = 8080; // Using port 8080 for local dev
+import { buildRouterFromConfig } from "./config/parser.js";
 
 if (cluster.isPrimary) {
   // --- THE MASTER PROCESS ---
@@ -23,7 +19,7 @@ if (cluster.isPrimary) {
     cluster.fork();
   }
 
-  // If a worker crashes instantly replace it.
+  // If a worker crashes instantly replace it
   cluster.on("exit", (worker, code, signal) => {
     console.error(
       `[Master] Worker ${worker.process.pid} died. Booting a replacement...`,
@@ -32,28 +28,25 @@ if (cluster.isPrimary) {
   });
 } else {
   // --- THE WORKER PROCESS ---
-  // 1. Instantiate the Strategy
-  const strategy = new RoundRobinStrategy();
+  try {
+    // 1. Resolve the absolute path to the YAML file
+    const configPath = path.resolve(process.cwd(), "torus.yaml");
 
-  // 2. Instantiate the Pool and inject the Strategy
-  const apiPool = new BackendPool(strategy);
+    // 2. Build the routing state machine
+    const { router, port } = buildRouterFromConfig(configPath);
 
-  // 3. Create some dummy backend servers (will replace this with YAML parsing later)
-  apiPool.addServer(new BackendServer("127.0.0.1", 3001));
-  apiPool.addServer(new BackendServer("127.0.0.1", 3002));
-  apiPool.addServer(new BackendServer("127.0.0.1", 3003));
+    // 3. Inject cofigured Router into the raw http server
+    const proxy = new ProxyServer(router);
 
-  // 4. Instantiate the Router and map the URL prefix to the Pool
-  const router = new Router();
-  router.addRoute("/", apiPool); // Catch-all route for testing
-
-  // 5. Instantiate the Server and bind the Router
-  const proxy = new ProxyServer(router);
-
-  // 6. Bind to the port
-  proxy.listen(PORT, () => {
-    console.log(
-      `[Worker ${process.pid}] Listening for TCP/HTTP traffic on port ${PORT}`,
-    );
-  });
+    // 4. Bind to the port
+    proxy.listen(port, () => {
+      console.log(
+        `[Worker ${process.pid}] Listening for TCP/HTTP traffic on port ${port}`,
+      );
+    });
+  } catch (error: any) {
+    // If the YAML file is malformed, kill the process completely
+    console.error(`[Worker ${process.pid}] Boot failed: ${error.message}`);
+    process.exit(1);
+  }
 }
