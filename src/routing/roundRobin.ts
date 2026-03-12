@@ -1,25 +1,24 @@
-// src/routing/roundRobin.ts
 import { BackendServer } from "./backend.js";
 import type { ILoadBalancingStrategy } from "./strategy.js";
 
 export class RoundRobinStrategy implements ILoadBalancingStrategy {
-  private _currentIndex: number = 0;
+  private currentIndex: number = 0;
 
   getNext(servers: BackendServer[]): BackendServer | null {
     if (servers.length === 0) {
       return null;
     }
 
-    // This loops the array by using the modulo operator
-    const server = servers[this._currentIndex % servers.length];
+    // Loop exactly server.length times
+    for (let i = 0; i < servers.length; i++) {
+      const server = servers[this.currentIndex];
+      this.currentIndex = (this.currentIndex + 1) % servers.length;
 
-    // Increment the counter for the next incoming request
-    this._currentIndex++;
-
-    if (this._currentIndex >= Number.MAX_SAFE_INTEGER) {
-      this._currentIndex = 0;
+      if (server && server.isHealthy) {
+        return server;
+      }
     }
 
-    return server ?? null;
+    return null; // if loop ended and entire pool is unhealthy
   }
 }
