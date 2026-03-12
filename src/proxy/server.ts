@@ -1,5 +1,6 @@
 import * as http from "node:http";
 import { Router } from "../routing/router.js";
+import { logger } from "../utils/logger.js";
 
 export class ProxyServer {
   private router: Router;
@@ -52,15 +53,25 @@ export class ProxyServer {
       proxyRes.pipe(clientRes);
 
       proxyRes.on("error", (err: Error) => {
-        console.error(`[Proxy Response Error] ${err.message}`);
+        logger.error(
+          {
+            err: err,
+          },
+          "Proxy Response Error: Failed to connect to backend",
+        );
         clientRes.end();
       });
     });
 
     // 6. Handle errors on the outbound connection (e.g., if backend server collapses)
     proxyReq.on("error", (err: Error) => {
-      console.error(
-        `[Proxy Request Error] Failed to connect to ${targetServer.host}:${targetServer.port} - ${err.message}`,
+      logger.error(
+        {
+          host: targetServer.host,
+          port: targetServer.port,
+          err: err,
+        },
+        "Proxy Request Error: Failed to connect to backend",
       );
       // If headers are not already sent, send a 502
       if (!clientRes.headersSent) {
@@ -75,7 +86,12 @@ export class ProxyServer {
 
     // 8. Handle errors on the inbound connection (e.g., if client disconnects)
     clientReq.on("error", (err: Error) => {
-      console.error(`[Client Request Error] ${err.message}`);
+      logger.error(
+        {
+          err: err,
+        },
+        "Client Request Error: Failed to connect to backend",
+      );
       proxyReq.destroy();
     });
   }

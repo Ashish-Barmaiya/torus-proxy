@@ -4,15 +4,24 @@ import * as path from "node:path";
 import { ProxyServer } from "./proxy/server.js";
 import { buildRouterFromConfig } from "./config/parser.js";
 import { HealthChecker } from "./routing/health.js";
+import { logger } from "./utils/logger.js";
 
 if (cluster.isPrimary) {
   // --- THE MASTER PROCESS ---
-  console.log(`[Master] Process ${process.pid} is running`);
+  logger.info(
+    {
+      pid: process.pid,
+    },
+    "Master process is running",
+  );
 
   // Count the machine's physical/logical CPU cores
   const numCPUs = os.cpus().length;
-  console.log(
-    `[Master] Booting ${numCPUs} worker processes to handle traffic...`,
+  logger.info(
+    {
+      cores: numCPUs,
+    },
+    "Booting worker processes to handle traffic",
   );
 
   // Fork a worker for every core
@@ -22,8 +31,13 @@ if (cluster.isPrimary) {
 
   // If a worker crashes instantly replace it
   cluster.on("exit", (worker, code, signal) => {
-    console.error(
-      `[Master] Worker ${worker.process.pid} died. Booting a replacement...`,
+    logger.warn(
+      {
+        pid: worker.process.pid,
+        exitCode: code,
+        signal: signal,
+      },
+      "Worker died. Booting a replacement...",
     );
     cluster.fork();
   });
@@ -51,13 +65,23 @@ if (cluster.isPrimary) {
 
     // 5. Bind to the port
     proxy.listen(port, () => {
-      console.log(
-        `[Worker ${process.pid}] Listening for TCP/HTTP traffic on port ${port}`,
+      logger.info(
+        {
+          pid: process.pid,
+          port: port,
+        },
+        "Worker listening for TCP/HTTP traffic",
       );
     });
   } catch (error: any) {
     // If the YAML file is malformed, kill the process completely
-    console.error(`[Worker ${process.pid}] Boot failed: ${error.message}`);
+    logger.error(
+      {
+        pid: process.pid,
+        err: error,
+      },
+      "Worker boot failed",
+    );
     process.exit(1);
   }
 }

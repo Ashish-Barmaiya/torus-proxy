@@ -1,5 +1,6 @@
 import * as net from "node:net";
 import { BackendServer } from "./backend.js";
+import { logger } from "../utils/logger.js";
 
 export class HealthChecker {
   private servers: Set<BackendServer>;
@@ -12,8 +13,11 @@ export class HealthChecker {
   }
 
   public start(): void {
-    console.log(
-      `[HealthChecker] Starting active monitoring for ${this.servers.size} unique servers...`,
+    logger.info(
+      {
+        serverCount: this.servers.size,
+      },
+      "Starting active monitoring for unique servers",
     );
 
     setInterval(() => {
@@ -27,8 +31,12 @@ export class HealthChecker {
 
     socket.once("connect", () => {
       if (!server.isHealthy) {
-        console.log(
-          `[Health] ${server.host}:${server.port} recovered. Marking ALIVE.`,
+        logger.info(
+          {
+            host: server.host,
+            port: server.port,
+          },
+          "Server recovered. Marking ALIVE.",
         );
         server.markAlive();
       }
@@ -37,8 +45,12 @@ export class HealthChecker {
 
     socket.once("timeout", () => {
       if (server.isHealthy) {
-        console.error(
-          `[Health] ${server.host}:${server.port} TIMED OUT. Marking DEAD.`,
+        logger.warn(
+          {
+            host: server.host,
+            port: server.port,
+          },
+          "Health check timed out. Marking DEAD.",
         );
         server.markDead();
       }
@@ -47,8 +59,13 @@ export class HealthChecker {
 
     socket.once("error", (err) => {
       if (server.isHealthy) {
-        console.error(
-          `[Health] ${server.host}:${server.port} FAILED (${err.message}). Marking DEAD.`,
+        logger.warn(
+          {
+            host: server.host,
+            port: server.port,
+            err: err,
+          },
+          "Health check failed. Marking DEAD.",
         );
         server.markDead();
       }
