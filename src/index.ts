@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ProxyServer } from "./proxy/server.js";
 import { buildRouterFromConfig } from "./config/parser.js";
+import { HealthChecker } from "./routing/health.js";
 
 if (cluster.isPrimary) {
   // --- THE MASTER PROCESS ---
@@ -33,12 +34,22 @@ if (cluster.isPrimary) {
     const configPath = path.resolve(process.cwd(), "torus.yaml");
 
     // 2. Build the routing state machine
-    const { router, port } = buildRouterFromConfig(configPath);
+    const { router, port, servers } = buildRouterFromConfig(configPath);
 
-    // 3. Inject cofigured Router into the raw http server
+    // 3. Start health checks
+    /**
+     * Currently, the health checker runs for every worker process.
+     * This is not the most efficient way to do it, but it works for now.
+     *
+     * TODO: Implement a global health checker that runs in the master process using Inter-Process Communication.
+     */
+    const healthChecker = new HealthChecker(servers);
+    healthChecker.start();
+
+    // 4. Inject cofigured Router into the raw http server
     const proxy = new ProxyServer(router);
 
-    // 4. Bind to the port
+    // 5. Bind to the port
     proxy.listen(port, () => {
       console.log(
         `[Worker ${process.pid}] Listening for TCP/HTTP traffic on port ${port}`,

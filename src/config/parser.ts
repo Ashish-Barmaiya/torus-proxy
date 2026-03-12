@@ -12,10 +12,13 @@ interface ConfigStructure {
   upstreams: { name: string; servers: { host: string; port: number }[] }[];
 }
 
-export function buildRouterFromConfig(filePath: string): {
+export interface ParsedConfig {
   router: Router;
   port: number;
-} {
+  servers: BackendServer[];
+}
+
+export function buildRouterFromConfig(filePath: string): ParsedConfig {
   // 1. Read and parse the file synchronously.
   // Using synchronous process to block the thread here as this only happens once at startup.
   if (!fs.existsSync(filePath)) {
@@ -35,13 +38,17 @@ export function buildRouterFromConfig(filePath: string): {
   const router = new Router();
   const pools = new Map<string, BackendPool>();
 
+  const allServers: BackendServer[] = []; // collect every single server instance for the HealthChecker
+
   // 2. Build the Upstream Pools
   for (const upstream of config.upstreams) {
     const strategy = new RoundRobinStrategy();
     const pool = new BackendPool(strategy);
 
     for (const serverConfig of upstream.servers) {
-      pool.addServer(new BackendServer(serverConfig.host, serverConfig.port));
+      const server = new BackendServer(serverConfig.host, serverConfig.port);
+      pool.addServer(server); // add server for routing
+      allServers.push(server); // add server for health checks
     }
 
     // Store the pool temporarily in a Map so servers can be linked to routes later
@@ -62,5 +69,5 @@ export function buildRouterFromConfig(filePath: string): {
     router.addRoute(route.path, targetPool);
   }
 
-  return { router, port: config.server?.port || 8080 };
+  return { router, port: config.server?.port || 8080, servers: allServers };
 }
