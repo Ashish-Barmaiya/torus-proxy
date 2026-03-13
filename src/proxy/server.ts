@@ -1,6 +1,11 @@
 import * as http from "node:http";
 import { Router } from "../routing/router.js";
 import { logger } from "../utils/logger.js";
+import {
+  register,
+  requestCounter,
+  requestDurationHistogram,
+} from "../utils/metrics.js";
 
 export class ProxyServer {
   private router: Router;
@@ -15,24 +20,37 @@ export class ProxyServer {
     this.server.listen(port, callback);
   }
 
-  private handleRequest(
+  private async handleRequest(
     clientReq: http.IncomingMessage,
     clientRes: http.ServerResponse,
   ) {
-    // 1. Get the destination url from client request
+    // Get the destination url from client request
     const url = clientReq.url || "/";
+    const method = clientReq.method || "GET";
 
-    // 2. Ask the router for a destination
+    // --- METRICS INTERCEPTOR ---
+    // If Prometheus is scraping, return the metrics directly. Do not route
+    if (url === "/metrics" && method === "GET") {
+      clientRes.setHeader("Content-Type", register.contentType);
+      const metrics = await register.metrics();
+      clientRes.end(metrics);
+      return;
+    }
+
+    // Start the latency timer for normal traffic
+    const endTimer = requestDurationHistogram.startTimer();
+
+    // 1. Ask the router for a destination
     const targetServer = this.router.routeRequest(url);
 
-    // 3. If no destination, return 502 and end connection
+    // 2. If no destination, return 502 and end connection
     if (!targetServer) {
       clientRes.writeHead(502, { "Content-Type": "text/plain" });
       clientRes.end("502 Bad Gateway: No available upstream servers.");
       return;
     }
 
-    // 4. Construct the outbound request options
+    // 3. Construct the outbound request options
     const options: http.RequestOptions = {
       hostname: targetServer.host,
       port: targetServer.port,
@@ -44,13 +62,21 @@ export class ProxyServer {
       },
     };
 
-    // 5. Create a outbound request for the target server
+    // 4. Create a outbound request for the target server
     const proxyReq = http.request(options, (proxyRes: http.IncomingMessage) => {
+      const status = proxyRes.statusCode || 200;
+
       // Forward the server's http status code and headers to client
-      clientRes.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+      clientRes.writeHead(status, proxyRes.headers);
 
       // PIPE: Stream the server's response directly to the client
       proxyRes.pipe(clientRes);
+
+      // Record the success status metric when the response finishes
+      proxyRes.on("end", () => {
+        requestCounter.inc({ method, status });
+        endTimer({ method, status });
+      });
 
       proxyRes.on("error", (err: Error) => {
         logger.error(
@@ -59,11 +85,18 @@ export class ProxyServer {
           },
           "Proxy Response Error: Failed to connect to backend",
         );
+        if (!clientRes.headersSent) {
+          clientRes.writeHead(502);
+        }
         clientRes.end();
+
+        // Record the error status metric when the response finishes
+        requestCounter.inc({ method, status: 502 });
+        endTimer({ method, status: 502 });
       });
     });
 
-    // 6. Handle errors on the outbound connection (e.g., if backend server collapses)
+    // 5. Handle errors on the outbound connection (e.g., if backend server collapses)
     proxyReq.on("error", (err: Error) => {
       logger.error(
         {
@@ -79,12 +112,16 @@ export class ProxyServer {
       }
       // End the connection
       clientRes.end("502 Bad Gateway");
+
+      // Record the error status metric when the response finishes
+      requestCounter.inc({ method, status: 502 });
+      endTimer({ method, status: 502 });
     });
 
-    // 7. PIPE: Stream the incoming client payload directly to the server
+    // 6. PIPE: Stream the incoming client payload directly to the server
     clientReq.pipe(proxyReq);
 
-    // 8. Handle errors on the inbound connection (e.g., if client disconnects)
+    // 7. Handle errors on the inbound connection (e.g., if client disconnects)
     clientReq.on("error", (err: Error) => {
       logger.error(
         {
