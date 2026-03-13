@@ -1,5 +1,6 @@
 import cluster from "node:cluster";
 import * as os from "node:os";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { ProxyServer } from "./proxy/server.js";
 import { buildRouterFromConfig } from "./config/parser.js";
@@ -60,17 +61,23 @@ if (cluster.isPrimary) {
     const healthChecker = new HealthChecker(servers);
     healthChecker.start();
 
-    // 4. Inject cofigured Router into the raw http server
-    const proxy = new ProxyServer(router);
+    // 4. Load the Cryptographic Keys into Memory
+    const tlsOptions = {
+      key: fs.readFileSync(path.resolve(process.cwd(), "certs", "key.pem")),
+      cert: fs.readFileSync(path.resolve(process.cwd(), "certs", "cert.pem")),
+    };
 
-    // 5. Bind to the port
+    // 5. Inject cofigured Router into the raw http server
+    const proxy = new ProxyServer(router, tlsOptions);
+
+    // 6. Bind to the port
     proxy.listen(port, () => {
       logger.info(
         {
           pid: process.pid,
           port: port,
         },
-        "Worker listening for TCP/HTTP traffic",
+        "Worker listening for Secure HTTPS traffic",
       );
     });
   } catch (error: any) {

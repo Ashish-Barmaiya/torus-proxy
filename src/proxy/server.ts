@@ -1,4 +1,5 @@
 import * as http from "node:http";
+import * as https from "node:https";
 import { Router } from "../routing/router.js";
 import { logger } from "../utils/logger.js";
 import {
@@ -9,11 +10,11 @@ import {
 
 export class ProxyServer {
   private router: Router;
-  private server: http.Server;
+  private server: https.Server;
 
-  constructor(router: Router) {
+  constructor(router: Router, tlsOptions: https.ServerOptions) {
     this.router = router;
-    this.server = http.createServer(this.handleRequest.bind(this));
+    this.server = https.createServer(tlsOptions, this.handleRequest.bind(this));
   }
 
   public listen(port: number, callback?: () => void) {
@@ -59,6 +60,7 @@ export class ProxyServer {
       headers: {
         ...clientReq.headers,
         "x-forwarded-for": clientReq.socket.remoteAddress || "", // This injects the original client IP
+        "x-forwarded-proto": "https",
       },
     };
 
