@@ -7,14 +7,17 @@ import {
   requestCounter,
   requestDurationHistogram,
 } from "../utils/metrics.js";
+import { RedisRateLimiter } from "../security/rateLimiter.js";
 
 export class ProxyServer {
   private router: Router;
   private server: https.Server;
+  private rateLimiter: RedisRateLimiter;
 
   constructor(router: Router, tlsOptions: https.ServerOptions) {
     this.router = router;
     this.server = https.createServer(tlsOptions, this.handleRequest.bind(this));
+    this.rateLimiter = new RedisRateLimiter();
   }
 
   // Safely update the router for hot-reload
@@ -42,6 +45,25 @@ export class ProxyServer {
       const metrics = await register.metrics();
       clientRes.end(metrics);
       return;
+    }
+
+    // --- RATE LIMITING ---
+    const clientIp = clientReq.socket.remoteAddress || "unknown";
+
+    // Capacity: 100 requests
+    // Refill Rate: 10 requests per second
+    /* TODO: Enterprise API Gateways doesnt hardcode rate limiting. It defines them per-route inside the YAML file.*/
+    const isAllowed = await this.rateLimiter.consume(clientIp, 100, 10);
+
+    if (!isAllowed) {
+      logger.warn({ ip: clientIp }, "Traffic Dropped: Rate limit exceeded");
+      clientRes.writeHead(429, {
+        "Content-Type": "text/plain",
+        "Retry-After": "1",
+      });
+      clientRes.end("429 Too Many Requests: Rate limit exceeded.");
+      requestCounter.inc({ method, status: 429 });
+      return; // Terminate the connection
     }
 
     // Start the latency timer for normal traffic
