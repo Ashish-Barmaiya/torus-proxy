@@ -7,6 +7,8 @@ import { buildRouterFromConfig } from "./config/parser.js";
 import { HealthChecker } from "./routing/health.js";
 import { logger } from "./utils/logger.js";
 
+const configPath = path.resolve(process.cwd(), "torus.yaml");
+
 if (cluster.isPrimary) {
   // --- THE MASTER PROCESS ---
   logger.info(
@@ -42,23 +44,54 @@ if (cluster.isPrimary) {
     );
     cluster.fork();
   });
+
+  // --- THE WATCHER (Zero-Downtime Hot Reload) ---
+  let debounceTimer: NodeJS.Timeout;
+
+  fs.watch(configPath, (eventType) => {
+    if (eventType === "change") {
+      clearTimeout(debounceTimer);
+
+      // Debounce the file system events by 500ms
+      debounceTimer = setTimeout(() => {
+        try {
+          // DRY RUN: Parse the config in the Master first. If this throws an error, the catch blocks stop the reload.
+          buildRouterFromConfig(configPath);
+          const activeWorkers = Object.values(cluster.workers || {}); // If undefined, fallback to empty object
+          logger.info(
+            { workerCount: activeWorkers.length },
+            "Configuration change detected and validated. Broadcasting hot-reload signal.",
+          );
+
+          // Broadcast the signal to all living workers via IPC
+          activeWorkers.forEach((worker) => {
+            worker?.send({ type: "RELOAD_CONFIG" });
+          });
+        } catch (error) {
+          logger.error(
+            {
+              err: error,
+            },
+            "Hot-reload aborted: Invalid torus.yaml configuration.",
+          );
+        }
+      }, 500);
+    }
+  });
 } else {
   // --- THE WORKER PROCESS ---
   try {
-    // 1. Resolve the absolute path to the YAML file
-    const configPath = path.resolve(process.cwd(), "torus.yaml");
-
-    // 2. Build the routing state machine
+    // 1. Build the routing state machine
     const { router, port, servers } = buildRouterFromConfig(configPath);
 
-    // 3. Start health checks
+    // 2. Start health checks
     /**
      * Currently, the health checker runs for every worker process.
      * This is not the most efficient way to do it, but it works for now.
      *
      * TODO: Implement a global health checker that runs in the master process using Inter-Process Communication.
      */
-    const healthChecker = new HealthChecker(servers);
+    let healthChecker = new HealthChecker(servers);
     healthChecker.start();
 
     // 4. Load the Cryptographic Keys into Memory
@@ -79,6 +112,43 @@ if (cluster.isPrimary) {
         },
         "Worker listening for Secure HTTPS traffic",
       );
+    });
+
+    // 7. --- IPC LISTENER (Hot Swap Logic) ---
+    process.on("message", (msg: any) => {
+      if (msg.type === "RELOAD_CONFIG") {
+        logger.info(
+          { pid: process.pid, msg: msg },
+          "IPC Bridge: Message received from Master",
+        );
+        if (msg && msg.type === "RELOAD_CONFIG") {
+          logger.info({ pid: process.pid }, "Worker swapping state...");
+          try {
+            // 1. Parse the new configuration
+            const newConfig = buildRouterFromConfig(configPath);
+
+            // 2. Safely terminate the old health checker loop
+            healthChecker.stop();
+
+            // 3. Boot the new health checker
+            healthChecker = new HealthChecker(newConfig.servers);
+            healthChecker.start();
+
+            // 4. Hot-swap the router in the active TCP server
+            proxy.updateRouter(newConfig.router);
+
+            logger.info(
+              { pid: process.pid },
+              "Worker successfully hot-reloaded routing state without dropping connections.",
+            );
+          } catch (err: any) {
+            logger.error(
+              { err, pid: process.pid },
+              "Worker failed to hot-reload state.",
+            );
+          }
+        }
+      }
     });
   } catch (error: any) {
     // If the YAML file is malformed, kill the process completely

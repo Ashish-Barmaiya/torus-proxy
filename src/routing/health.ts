@@ -5,6 +5,7 @@ import { logger } from "../utils/logger.js";
 export class HealthChecker {
   private servers: Set<BackendServer>;
   private intervalMs: number;
+  private timerId?: NodeJS.Timeout;
 
   constructor(servers: BackendServer[], intervalMs: number = 10000) {
     // Runs every 10 seconds
@@ -20,9 +21,17 @@ export class HealthChecker {
       "Starting active monitoring for unique servers",
     );
 
-    setInterval(() => {
+    this.timerId = setInterval(() => {
       this.servers.forEach((server) => this.ping(server));
     }, this.intervalMs);
+  }
+
+  // Safely destroy the loop
+  public stop(): void {
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      logger.info("HealthChecker loop terminated for hot-reload.");
+    }
   }
 
   private ping(server: BackendServer): void {

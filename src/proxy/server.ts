@@ -17,6 +17,12 @@ export class ProxyServer {
     this.server = https.createServer(tlsOptions, this.handleRequest.bind(this));
   }
 
+  // Safely update the router for hot-reload
+  public updateRouter(newRouter: Router) {
+    this.router = newRouter;
+    logger.info("ProxyServer internal router has been hot-swapped.");
+  }
+
   public listen(port: number, callback?: () => void) {
     this.server.listen(port, callback);
   }
