@@ -1,31 +1,41 @@
 # Torus Proxy Benchmarks
 
-## The Architecture Proof
-The primary goal of this load test is to validate the `node:http` stream piping architecture. A common failure point in Node.js proxies is buffering the payload in memory, which leads to immediate OOM (Out of Memory) crashes under load. 
-
-By leveraging native `.pipe()` on the request and response streams, Torus Proxy bypasses the V8 JavaScript heap entirely, allowing the OS network stack to move the bytes directly.
+This document tracks the performance of Torus Proxy across two distinct architectural states. All tests were executed on highly constrained, shared hardware to establish a baseline worst-case scenario.
 
 ## Test Environment
 * **CPU:** Intel(R) Core(TM) i3-1115G4 @ 3.00GHz (2 Cores, 4 Threads)
 * **RAM:** 8.0 GB
 * **OS:** Windows / Node.js
 * **Tool:** Autocannon (100 concurrent connections, 10-second duration)
-* **Conditions:** Proxy cluster (Master + 4 Workers), Load Generator, and 3 dummy backend servers all running simultaneously on the same low-voltage dual-core machine.
 
-## Stress Test Results
+---
 
-### Command
-`autocannon -c 100 -d 10 http://localhost:8080/api`
+## Scenario A: The Baseline (Raw I/O & Routing)
+**Objective** Validate the core `node:http` stream piping architecture. Measure the maximum throughput of the Master/Worker cluster routing plain-text HTTP without security overhead.
 
-### Output
-* **Total Requests:** ~17,000 in 10 seconds
-* **Throughput:** 1,647 requests/sec (Avg)
-* **Data Transferred:** 3.56 MB read
-* **Errors / Dropped Sockets:** 0
+**Command:** `autocannon -c 100 -d 10 http://localhost:8080/api`
 
-### Resource Utilization
-* **CPU:** Spiked to ~100% (Expected: Event loop saturated parsing HTTP headers and routing, bottlenecked by shared hardware).
-* **Memory:** Flatlined at 6.6 GB. **Zero memory growth.**
+* **Throughput:** 1,647 requests/sec
+* **Errors:** 0
+* **Memory Footprint:** Flat (Zero memory leaks or buffering bloat)
 
-## Conclusion
-The flat memory profile mathematically proves the absence of stream buffering leaks. The proxy successfully routed 1,647 requests per second with zero dropped connections on highly constrained, shared hardware. Deployed on dedicated infrastructure (e.g., AWS c6g.large), throughput will scale linearly with core count.
+**Conclusion:** The native `.pipe()` architecture successfully bypasses the V8 JavaScript heap. The bottleneck is purely CPU event-loop saturation.
+
+---
+
+## Scenario B: The Production Edge (TLS + Redis)
+**Objective:** Measure the true performance of Torus v1.0.0 operating as a fully-loaded Enterprise API Gateway. 
+
+**Active Constraints:**
+1. **TLS Termination:** Every connection requires strict cryptographic handshaking and payload decryption.
+2. **Distributed Rate Limiting:** Every request executes an atomic Lua script over TCP to a local Redis cluster.
+3. **Hardware Contention:** The dual-core i3 is simultaneously running the Torus Master, 4 Torus Workers, the Redis Container, 3 Backend Servers, and the Autocannon generator.
+
+**Command:** `export NODE_TLS_REJECT_UNAUTHORIZED=0 && autocannon -c 100 -d 10 https://localhost:8080/api`
+
+* **Throughput:** 968 requests/sec
+* **Latency:** Avg: 103 ms | P99: 488 ms
+* **Data Transferred:** 2.09 MB
+* **Errors:** 0 (100% HTTP 200 Success Rate)
+
+**Conclusion:** Security and distributed state have a mathematical cost. Adding TLS decryption and Redis atomicity resulted in a ~41% reduction in raw throughput. However, pushing nearly 1,000 RPS on a saturated, low-voltage dual-core processor proves the architecture's efficiency. Deployed on dedicated infrastructure (e.g., AWS c7g.large), throughput will scale linearly with physical core count.

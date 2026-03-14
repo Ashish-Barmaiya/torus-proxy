@@ -27,7 +27,3 @@ upstreams:
       - host: 127.0.0.1
         port: 3001 # Reusing ports for testing
         
-  - name: hot_reload
-    servers:
-      - host: 127.0.0.1
-        port: 9999
