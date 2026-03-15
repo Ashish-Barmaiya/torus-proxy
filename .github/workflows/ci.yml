@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     
     # Run the tests across multiple Node versions to guarantee compatibility
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Force Node 24 for @actions/setup-node
+
     strategy:
       matrix:
         node-version: [20.x, 22.x]
