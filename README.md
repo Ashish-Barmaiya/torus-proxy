@@ -1,6 +1,6 @@
 <div align="center">
 
-# <h1 style="font-size: 48px;">TORUS</h1>
+# <h1 style="font-size: 64px; mt=0;" >TORUS</h1>
 
 **A Layer 7 Reverse Proxy & Edge API Gateway built natively on Node.js.**
 
@@ -107,13 +107,34 @@ server:
   port: 8080
 
 routes:
+server:
+  port: 8080
+
+routes:
   - path: /api
-    upstreams:
-      - http://127.0.0.1:3001
-      - http://127.0.0.1:3002
+    upstream: api_backend
   - path: /auth
-    upstreams:
-      - http://127.0.0.1:3003
+    upstream: auth_backend
+  - path: /
+    upstream: default_backend
+
+upstreams:
+  - name: api_backend
+    servers:
+      - host: 127.0.0.1
+        port: 3001
+      - host: 127.0.0.1
+        port: 3002
+
+  - name: auth_backend
+    servers:
+      - host: 127.0.0.1
+        port: 3003
+
+  - name: default_backend
+    servers:
+      - host: 127.0.0.1
+        port: 3001
 ```
 
 ### 4. Boot the Redis dependency
@@ -197,7 +218,8 @@ torus-proxy/
 ├── src/
 │   ├── index.ts              # Entry point — cluster master/worker fork
 │   ├── config/
-│   │   └── parser.ts         # YAML parser & router builder
+│   │   ├── parser.ts         # YAML parser & router builder
+│   │   └── __tests__/        # Unit tests for YAML parser     
 │   ├── proxy/
 │   │   └── server.ts         # HTTPS server, request handler, metrics endpoint
 │   ├── routing/
@@ -227,7 +249,7 @@ torus-proxy/
 ## Running Tests
 
 ```bash
-npm test
+npm run test
 ```
 
 Tests use Jest with `ts-jest` and cover the routing engine and load-balancing strategies.
