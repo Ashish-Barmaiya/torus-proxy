@@ -1,6 +1,6 @@
 <div align="center">
 
-# <h1 style="font-size: 64px; mt=0;" >TORUS</h1>
+# <h1 style="font-size: 48px;">TORUS</h1>
 
 **A Layer 7 Reverse Proxy & Edge API Gateway built natively on Node.js.**
 
