@@ -7,6 +7,7 @@ import path from "node:path";
 import os from "node:os";
 import tls from "node:tls";
 import net from "node:net";
+import crypto from "node:crypto";
 
 // 1. Mock Redis so the test doesn't fail if Docker isn't running
 jest.unstable_mockModule("../../security/rateLimiter.js", () => ({
@@ -38,24 +39,57 @@ describe("ProxyServer Integration Network Tests", () => {
   let tmpDir: string;
   let activeSockets = new Set<net.Socket>();
 
+  const TEST_SECRET = "test-secret-key-123";
+  let validJwt: string;
+
   // Helper to bypass strict TLS engine
   const fetchInsecure = (
     url: string,
+    customHeaders: Record<string, string> = {},
   ): Promise<{ status: number; body: string }> => {
     return new Promise((resolve, reject) => {
-      https
-        .get(url, { rejectUnauthorized: false }, (res) => {
-          let data = "";
-          res.on("data", (chunk) => (data += chunk));
-          res.on("end", () =>
-            resolve({ status: res.statusCode || 500, body: data }),
-          );
-        })
-        .on("error", reject);
+      const parsedUrl = new URL(url);
+
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port,
+        path: parsedUrl.pathname,
+        method: "GET",
+        rejectUnauthorized: false,
+        headers: customHeaders,
+      };
+
+      const req = https.request(options, (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () =>
+          resolve({ status: res.statusCode || 500, body: data }),
+        );
+      });
+
+      req.on("error", reject);
+      req.end();
     });
   };
 
   beforeAll(() => {
+    // Inject the environment variable so the proxy can boot
+    process.env.JWT_SECRET = TEST_SECRET;
+
+    // Mathematically forge a valid JWT
+    const header = Buffer.from(
+      JSON.stringify({ alg: "HS256", typ: "JWT" }),
+    ).toString("base64url");
+    // Set expiration 1 hour into the future
+    const payload = Buffer.from(
+      JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+    ).toString("base64url");
+    const signature = crypto
+      .createHmac("sha256", TEST_SECRET)
+      .update(`${header}.${payload}`)
+      .digest("base64url");
+    validJwt = `Bearer ${header}.${payload}.${signature}`;
+
     // Dynamically generate a REAL x509 certificate using OpenSSL
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "torus-tls-"));
     const keyPath = path.join(tmpDir, "key.pem");
@@ -132,6 +166,7 @@ describe("ProxyServer Integration Network Tests", () => {
         try {
           const response = await fetchInsecure(
             `https://127.0.0.1:${proxyPort}/api/data`,
+            { Authorization: validJwt },
           );
           const body = JSON.parse(response.body);
           expect(response.status).toBe(200);
@@ -158,6 +193,7 @@ describe("ProxyServer Integration Network Tests", () => {
       try {
         const response = await fetchInsecure(
           `https://127.0.0.1:${proxyPort + 1}/api/data`,
+          { Authorization: validJwt },
         );
 
         // Torus MUST not crash. It must return 502.
@@ -224,6 +260,7 @@ describe("ProxyServer Integration Network Tests", () => {
                 "Host: 127.0.0.1\r\n" +
                 "Connection: Upgrade\r\n" +
                 "Upgrade: websocket\r\n" +
+                `Authorization: ${validJwt}\r\n` +
                 "\r\n",
             );
           },
@@ -253,6 +290,67 @@ describe("ProxyServer Integration Network Tests", () => {
         });
 
         client.on("error", (err) => done(err));
+      });
+    });
+  });
+
+  it("should aggressively reject an HTTP request with a forged JWT signature", (done) => {
+    // 1. Boot the Dummy Backend
+    backendServer = http.createServer((req, res) => {
+      // If the authenticator fails, this code executes and the test fails.
+      res.writeHead(200);
+      res.end("CRITICAL FAILURE: Backend reached by unauthorized traffic");
+    });
+
+    backendServer.listen(0, () => {
+      backendPort = (backendServer.address() as any).port;
+
+      // 2. Configure Torus Routing
+      const backend = new BackendServer("127.0.0.1", backendPort);
+      const pool = new BackendPool(new RoundRobinStrategy());
+      pool.addServer(backend);
+
+      const router = new Router();
+      router.addRoute("/api", pool);
+
+      // 3. Boot Torus Proxy on port + 3 to avoid collisions
+      proxyServer = new ProxyServer(router, tlsOptions);
+      proxyServer.server.listen(proxyPort + 3, async () => {
+        // 4. Mathematically forge a malicious token
+        const header = Buffer.from(
+          JSON.stringify({ alg: "HS256", typ: "JWT" }),
+        ).toString("base64url");
+        const maliciousPayload = Buffer.from(
+          JSON.stringify({
+            exp: Math.floor(Date.now() / 1000) + 3600,
+            admin: true,
+          }),
+        ).toString("base64url");
+
+        // Attacker signs it with their own random secret
+        const forgedSignature = crypto
+          .createHmac("sha256", "HACKER_SECRET_KEY")
+          .update(`${header}.${maliciousPayload}`)
+          .digest("base64url");
+        const forgedJwt = `Bearer ${header}.${maliciousPayload}.${forgedSignature}`;
+
+        // 5. Fire the attack
+        try {
+          const response = await fetchInsecure(
+            `https://127.0.0.1:${proxyPort + 3}/api/data`,
+            { Authorization: forgedJwt },
+          );
+
+          const body = JSON.parse(response.body);
+
+          // 6. Assert the authenticator did its job
+          expect(response.status).toBe(401);
+          expect(body.error).toBe("Unauthorized");
+
+          done();
+        } catch (err) {
+          done(err);
+        }
       });
     });
   });
