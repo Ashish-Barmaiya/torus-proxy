@@ -1,11 +1,14 @@
 import * as http from "node:http";
 import * as https from "node:https";
+import net from "node:net";
 import { Router } from "../routing/router.js";
 import { logger } from "../utils/logger.js";
 import {
   register,
   requestCounter,
   requestDurationHistogram,
+  activeWebSockets,
+  wsUpgradesTotal,
 } from "../utils/metrics.js";
 import { RedisRateLimiter } from "../security/rateLimiter.js";
 
@@ -17,6 +20,7 @@ export class ProxyServer {
   constructor(router: Router, tlsOptions: https.ServerOptions) {
     this.router = router;
     this.server = https.createServer(tlsOptions, this.handleRequest.bind(this));
+    this.server.on("upgrade", this.handleUpgrade.bind(this));
     this.rateLimiter = new RedisRateLimiter();
   }
 
@@ -30,6 +34,9 @@ export class ProxyServer {
     this.server.listen(port, callback);
   }
 
+  /* --------------------
+     HTTP REQUEST HANDLER
+   -------------------- */
   private async handleRequest(
     clientReq: http.IncomingMessage,
     clientRes: http.ServerResponse,
@@ -160,6 +167,102 @@ export class ProxyServer {
         "Client Request Error: Failed to connect to backend",
       );
       proxyReq.destroy();
+    });
+  }
+
+  /* --------------------
+     WEBSOCKET REQUEST HANDLER
+   -------------------- */
+  private async handleUpgrade(
+    req: http.IncomingMessage,
+    clientSocket: net.Socket,
+    head: Buffer,
+  ) {
+    const clientIp = req.socket.remoteAddress || "unknown";
+
+    // 1. Rate Limiting
+    try {
+      const isAllowed = await this.rateLimiter.consume(clientIp, 100, 10);
+      if (!isAllowed) {
+        logger.warn(
+          { ip: clientIp, path: req.url },
+          "Rate limit exceeded on WS upgrade",
+        );
+        clientSocket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
+        clientSocket.destroy();
+        return;
+      }
+    } catch (err) {
+      logger.error(
+        { err },
+        "Rate limiter failed during WS upgrade. Failing open.",
+      );
+    }
+
+    // 2. Routing
+    const targetUrl = req.url || "/";
+    const backend = this.router.routeRequest(targetUrl);
+
+    if (!backend) {
+      logger.warn({ path: targetUrl }, "No upstream found for WS upgrade");
+      clientSocket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+      clientSocket.destroy();
+      return;
+    }
+
+    // 3. Open backend TCP socket
+    const backendSocket = net.connect(backend.port, backend.host, () => {
+      // 4. Construct and send the Upgrade headers to the backend
+      let upgradeHeaders = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        upgradeHeaders += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+      }
+      upgradeHeaders += "\r\n"; // Terminate headers
+
+      backendSocket.write(upgradeHeaders);
+      if (head && head.length > 0) {
+        backendSocket.write(head); // Write the first chunk of data if the client sent any
+      }
+
+      // 5. Pipe the streams bidirectionally
+      clientSocket.pipe(backendSocket);
+      backendSocket.pipe(clientSocket);
+
+      // --- METRICS: Connection established ---
+      wsUpgradesTotal.inc({ status: "success" });
+      activeWebSockets.inc();
+    });
+
+    // 6. Error Handling (Prevent Worker Crashes)
+    backendSocket.on("error", (err) => {
+      logger.error(
+        { err, backend: `${backend.host}:${backend.port}` },
+        "Backend WS socket error",
+      );
+      if (!clientSocket.destroyed) {
+        clientSocket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+        clientSocket.destroy();
+      }
+    });
+
+    clientSocket.on("error", (err) => {
+      logger.error({ err }, "Client WS socket error");
+      if (!backendSocket.destroyed) backendSocket.destroy();
+    });
+
+    // 7. Prevent Half-Open Socket Leaks
+    clientSocket.on("close", () => {
+      activeWebSockets.dec();
+      if (!backendSocket.destroyed) backendSocket.destroy();
+    });
+
+    backendSocket.on("close", () => {
+      if (!clientSocket.destroyed) clientSocket.destroy();
+    });
+
+    // --- METRICS: Connection Closed ---
+    clientSocket.on("close", () => {
+      activeWebSockets.dec();
     });
   }
 }

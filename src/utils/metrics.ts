@@ -23,3 +23,18 @@ export const requestDurationHistogram = new client.Histogram({
   registers: [register],
   buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
 });
+
+// 3. Guage: Active WebSockets
+export const activeWebSockets = new client.Gauge({
+  name: "torus_ws_active_connections",
+  help: "Current number of active WebSocket connections",
+  registers: [register],
+});
+
+// 4. Counter: Total WebSocket Connections
+export const wsUpgradesTotal = new client.Counter({
+  name: "torus_ws_upgrades_total",
+  help: "Total number of WebSocket protocol upgrade requests",
+  labelNames: ["status"], // 'success', 'rejected_rate_limit', 'rejected_not_found'
+  registers: [register],
+});
