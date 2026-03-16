@@ -293,4 +293,65 @@ describe("ProxyServer Integration Network Tests", () => {
       });
     });
   });
+
+  it("should aggressively reject an HTTP request with a forged JWT signature", (done) => {
+    // 1. Boot the Dummy Backend
+    backendServer = http.createServer((req, res) => {
+      // If the authenticator fails, this code executes and the test fails.
+      res.writeHead(200);
+      res.end("CRITICAL FAILURE: Backend reached by unauthorized traffic");
+    });
+
+    backendServer.listen(0, () => {
+      backendPort = (backendServer.address() as any).port;
+
+      // 2. Configure Torus Routing
+      const backend = new BackendServer("127.0.0.1", backendPort);
+      const pool = new BackendPool(new RoundRobinStrategy());
+      pool.addServer(backend);
+
+      const router = new Router();
+      router.addRoute("/api", pool);
+
+      // 3. Boot Torus Proxy on port + 3 to avoid collisions
+      proxyServer = new ProxyServer(router, tlsOptions);
+      proxyServer.server.listen(proxyPort + 3, async () => {
+        // 4. Mathematically forge a malicious token
+        const header = Buffer.from(
+          JSON.stringify({ alg: "HS256", typ: "JWT" }),
+        ).toString("base64url");
+        const maliciousPayload = Buffer.from(
+          JSON.stringify({
+            exp: Math.floor(Date.now() / 1000) + 3600,
+            admin: true,
+          }),
+        ).toString("base64url");
+
+        // Attacker signs it with their own random secret
+        const forgedSignature = crypto
+          .createHmac("sha256", "HACKER_SECRET_KEY")
+          .update(`${header}.${maliciousPayload}`)
+          .digest("base64url");
+        const forgedJwt = `Bearer ${header}.${maliciousPayload}.${forgedSignature}`;
+
+        // 5. Fire the attack
+        try {
+          const response = await fetchInsecure(
+            `https://127.0.0.1:${proxyPort + 3}/api/data`,
+            { Authorization: forgedJwt },
+          );
+
+          const body = JSON.parse(response.body);
+
+          // 6. Assert the authenticator did its job
+          expect(response.status).toBe(401);
+          expect(body.error).toBe("Unauthorized");
+
+          done();
+        } catch (err) {
+          done(err);
+        }
+      });
+    });
+  });
 });
