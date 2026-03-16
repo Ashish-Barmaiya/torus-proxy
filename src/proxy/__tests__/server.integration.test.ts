@@ -5,6 +5,8 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import tls from "node:tls";
+import net from "node:net";
 
 // 1. Mock Redis so the test doesn't fail if Docker isn't running
 jest.unstable_mockModule("../../security/rateLimiter.js", () => ({
@@ -34,6 +36,7 @@ describe("ProxyServer Integration Network Tests", () => {
   let proxyPort: number = 8081;
   let tlsOptions: any;
   let tmpDir: string;
+  let activeSockets = new Set<net.Socket>();
 
   // Helper to bypass strict TLS engine
   const fetchInsecure = (
@@ -78,7 +81,13 @@ describe("ProxyServer Integration Network Tests", () => {
   });
 
   afterEach((done) => {
-    // Then close the proxy
+    /// 1. Destroy all tracked rogue sockets first
+    for (const socket of activeSockets) {
+      if (!socket.destroyed) socket.destroy();
+    }
+    activeSockets.clear();
+
+    // 2. Then close the proxy gracefully
     const closeProxy = () => {
       if (proxyServer && proxyServer.server) {
         proxyServer.server.close(done);
@@ -88,7 +97,7 @@ describe("ProxyServer Integration Network Tests", () => {
       }
     };
 
-    // Close backend first
+    // 3. Close backend gracefully
     if (backendServer) {
       backendServer.close(closeProxy);
       backendServer = null as any;
@@ -159,6 +168,92 @@ describe("ProxyServer Integration Network Tests", () => {
       } catch (err) {
         done(err);
       }
+    });
+  });
+
+  it("should successfully proxy a Layer 4 WebSocket upgrade and stream bidirectional TCP data", (done) => {
+    // 1. Boot the Dummy Backend to act as a raw WebSocket server
+    backendServer = http.createServer();
+
+    // Track every raw socket that touches this dummy server
+    backendServer.on("connection", (socket) => {
+      activeSockets.add(socket);
+      socket.on("close", () => activeSockets.delete(socket));
+    });
+
+    backendServer.on("upgrade", (req, socket, head) => {
+      // Approve the protocol upgrade
+      socket.write(
+        "HTTP/1.1 101 Switching Protocols\r\n" +
+          "Upgrade: websocket\r\n" +
+          "Connection: Upgrade\r\n" +
+          "\r\n",
+      );
+
+      // Echo any raw bytes back to the client
+      socket.on("data", (chunk) => {
+        if (chunk.toString() === "PING") socket.write("PONG");
+      });
+    });
+
+    backendServer.listen(0, () => {
+      backendPort = (backendServer.address() as any).port;
+
+      // 2. Configure Torus Routing
+      const backend = new BackendServer("127.0.0.1", backendPort);
+      const pool = new BackendPool(new RoundRobinStrategy());
+      pool.addServer(backend);
+
+      const router = new Router();
+      router.addRoute("/ws", pool);
+
+      // 3. Boot Torus Proxy
+      proxyServer = new ProxyServer(router, tlsOptions);
+      proxyServer.server.listen(proxyPort + 2, () => {
+        // Use port + 2 to avoid collisions
+
+        // 4. Fire a raw TLS Socket at Torus (Bypassing HTTP entirely)
+        const client = tls.connect(
+          proxyPort + 2,
+          "127.0.0.1",
+          { rejectUnauthorized: false },
+          () => {
+            // Manually construct the HTTP Upgrade payload
+            client.write(
+              "GET /ws HTTP/1.1\r\n" +
+                "Host: 127.0.0.1\r\n" +
+                "Connection: Upgrade\r\n" +
+                "Upgrade: websocket\r\n" +
+                "\r\n",
+            );
+          },
+        );
+
+        let handshakeComplete = false;
+
+        // 5. Assert the Bidirectional Pipe
+        client.on("data", (chunk) => {
+          const response = chunk.toString();
+
+          if (!handshakeComplete) {
+            // Assert Torus successfully proxied the 101 response from the backend
+            expect(response).toContain("101 Switching Protocols");
+            handshakeComplete = true;
+
+            // Send raw Layer 4 TCP data through the proxy
+            client.write("PING");
+          } else {
+            // Assert Torus successfully proxied the response back from the backend
+            expect(response).toBe("PONG");
+
+            // Clean up sockets
+            client.destroy();
+            done();
+          }
+        });
+
+        client.on("error", (err) => done(err));
+      });
     });
   });
 });

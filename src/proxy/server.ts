@@ -239,13 +239,25 @@ export class ProxyServer {
         { err, backend: `${backend.host}:${backend.port}` },
         "Backend WS socket error",
       );
-      clientSocket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
-      clientSocket.destroy();
+      if (!clientSocket.destroyed) {
+        clientSocket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+        clientSocket.destroy();
+      }
     });
 
     clientSocket.on("error", (err) => {
       logger.error({ err }, "Client WS socket error");
-      backendSocket.destroy();
+      if (!backendSocket.destroyed) backendSocket.destroy();
+    });
+
+    // 7. Prevent Half-Open Socket Leaks
+    clientSocket.on("close", () => {
+      activeWebSockets.dec();
+      if (!backendSocket.destroyed) backendSocket.destroy();
+    });
+
+    backendSocket.on("close", () => {
+      if (!clientSocket.destroyed) clientSocket.destroy();
     });
 
     // --- METRICS: Connection Closed ---
