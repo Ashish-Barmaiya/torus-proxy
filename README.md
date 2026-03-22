@@ -78,7 +78,7 @@ Torus is a Layer 7 Reverse Proxy and Edge API Gateway built entirely from scratc
 
 ### Prerequisites
 
-- **Node.js** ≥ 22
+- **Node.js** ≥ 20
 - **Redis** running on `127.0.0.1:6379` (for rate limiting)
 - **OpenSSL** (to generate self-signed TLS certs for local development)
 

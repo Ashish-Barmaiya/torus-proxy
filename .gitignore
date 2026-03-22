@@ -4,7 +4,7 @@ node_modules/
 # Compiled TypeScript output
 dist/
 
-# Environment variables (Never push secrets)
+# Environment variables
 .env
 
 # OS generated files
