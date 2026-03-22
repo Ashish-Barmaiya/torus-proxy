@@ -1,6 +1,7 @@
 import * as http from "node:http";
 import * as https from "node:https";
 import net from "node:net";
+import { pipeline } from "node:stream/promises";
 import { Router } from "../routing/router.js";
 import { logger } from "../utils/logger.js";
 import {
@@ -114,74 +115,48 @@ export class ProxyServer {
       },
     };
 
-    // 5. Create a outbound request for the target server
+    // 5. PIPE: Create a outbound request for the target server and stream the server's response directly to the client
     const proxyReq = http.request(options, (proxyRes: http.IncomingMessage) => {
       const status = proxyRes.statusCode || 200;
 
       // Forward the server's http status code and headers to client
       clientRes.writeHead(status, proxyRes.headers);
 
-      // PIPE: Stream the server's response directly to the client
-      proxyRes.pipe(clientRes);
+      // Stream the server's response
+      pipeline(proxyRes, clientRes)
+        .then(() => {
+          // Record success metrics when pipeline finishes cleanly
+          requestCounter.inc({ method, status });
+          endTimer({ method, status });
+        })
+        .catch((err) => {
+          logger.error(
+            { err },
+            "Proxy Response Pipeline Error: Failed to stream backend response",
+          );
+          if (!clientRes.headersSent) {
+            clientRes.writeHead(502);
+          }
+          clientRes.end();
+          requestCounter.inc({ method, status: 502 });
+          endTimer({ method, status: 502 });
+        });
+    });
 
-      // Record the success status metric when the response finishes
-      proxyRes.on("end", () => {
-        requestCounter.inc({ method, status });
-        endTimer({ method, status });
-      });
-
-      proxyRes.on("error", (err: Error) => {
-        logger.error(
-          {
-            err: err,
-          },
-          "Proxy Response Error: Failed to connect to backend",
-        );
+    // 6. PIPE: Stream the incoming client payload directly to the server
+    pipeline(clientReq, proxyReq).catch((err) => {
+      logger.error(
+        { err },
+        "Client Request Pipeline Error: Failed to stream client payload",
+      );
+      if (!proxyReq.destroyed) proxyReq.destroy();
+      // If the backend violently rejects the connection (ECONNREFUSED), terminate the client's hanging request with a 502.
+      if (!clientRes.writableEnded) {
         if (!clientRes.headersSent) {
-          clientRes.writeHead(502);
+          clientRes.writeHead(502, { "Content-Type": "text/plain" });
         }
-        clientRes.end();
-
-        // Record the error status metric when the response finishes
-        requestCounter.inc({ method, status: 502 });
-        endTimer({ method, status: 502 });
-      });
-    });
-
-    // 6. Handle errors on the outbound connection (e.g., if backend server collapses)
-    proxyReq.on("error", (err: Error) => {
-      logger.error(
-        {
-          host: targetServer.host,
-          port: targetServer.port,
-          err: err,
-        },
-        "Proxy Request Error: Failed to connect to backend",
-      );
-      // If headers are not already sent, send a 502
-      if (!clientRes.headersSent) {
-        clientRes.writeHead(502, { "Content-Type": "text/plain" });
+        clientRes.end("502 Bad Gateway");
       }
-      // End the connection
-      clientRes.end("502 Bad Gateway");
-
-      // Record the error status metric when the response finishes
-      requestCounter.inc({ method, status: 502 });
-      endTimer({ method, status: 502 });
-    });
-
-    // 7. PIPE: Stream the incoming client payload directly to the server
-    clientReq.pipe(proxyReq);
-
-    // 8. Handle errors on the inbound connection (e.g., if client disconnects)
-    clientReq.on("error", (err: Error) => {
-      logger.error(
-        {
-          err: err,
-        },
-        "Client Request Error: Failed to connect to backend",
-      );
-      proxyReq.destroy();
     });
   }
 
@@ -251,45 +226,35 @@ export class ProxyServer {
         backendSocket.write(head); // Write the first chunk of data if the client sent any
       }
 
-      // 6. Pipe the streams bidirectionally
-      clientSocket.pipe(backendSocket);
-      backendSocket.pipe(clientSocket);
-
       // --- METRICS: Connection established ---
       wsUpgradesTotal.inc({ status: "success" });
       activeWebSockets.inc();
-    });
 
-    // 7. Error Handling (Prevent Worker Crashes)
-    backendSocket.on("error", (err) => {
-      logger.error(
-        { err, backend: `${backend.host}:${backend.port}` },
-        "Backend WS socket error",
-      );
-      if (!clientSocket.destroyed) {
-        clientSocket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
-        clientSocket.destroy();
-      }
-    });
-
-    clientSocket.on("error", (err) => {
-      logger.error({ err }, "Client WS socket error");
-      if (!backendSocket.destroyed) backendSocket.destroy();
-    });
-
-    // 8. Prevent Half-Open Socket Leaks
-    clientSocket.on("close", () => {
-      activeWebSockets.dec();
-      if (!backendSocket.destroyed) backendSocket.destroy();
-    });
-
-    backendSocket.on("close", () => {
-      if (!clientSocket.destroyed) clientSocket.destroy();
-    });
-
-    // --- METRICS: Connection Closed ---
-    clientSocket.on("close", () => {
-      activeWebSockets.dec();
+      // 6. The Pipeline State Machine
+      (async () => {
+        try {
+          // This runs both directions concurrently.
+          // If either side drops or errors out, the catch block fires immediately.
+          await Promise.all([
+            pipeline(clientSocket, backendSocket),
+            pipeline(backendSocket, clientSocket),
+          ]);
+        } catch (err: any) {
+          // A silent close (ECONNRESET) is standard network physics when clients drop.
+          // Only log actual application errors.
+          if (err.code !== "ECONNRESET") {
+            logger.error(
+              { err, backend: `${backend.host}:${backend.port}` },
+              "WS Pipeline disrupted",
+            );
+          }
+        } finally {
+          // 7. Ruthless Teardown & Metrics
+          activeWebSockets.dec();
+          if (!clientSocket.destroyed) clientSocket.destroy();
+          if (!backendSocket.destroyed) backendSocket.destroy();
+        }
+      })();
     });
   }
 }
