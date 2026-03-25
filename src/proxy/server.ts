@@ -49,6 +49,15 @@ export class ProxyServer {
     const url = clientReq.url || "/";
     const method = clientReq.method || "GET";
 
+    // --- L7 DDoS DEFENSE: Strict Teardown for Slow Clients ---
+    clientReq.socket.setTimeout(10000, () => {
+      logger.warn(
+        { ip: clientReq.socket.remoteAddress },
+        "Client socket timed out. Executing RST teardown.",
+      );
+      clientReq.socket.destroy(); // Instant RST, frees the FD
+    });
+
     // --- METRICS INTERCEPTOR ---
     // If Prometheus is scraping, return the metrics directly. Do not route
     if (url === "/metrics" && method === "GET") {
@@ -71,10 +80,13 @@ export class ProxyServer {
       clientRes.writeHead(429, {
         "Content-Type": "text/plain",
         "Retry-After": "1",
+        Connection: "close",
       });
-      clientRes.end("429 Too Many Requests: Rate limit exceeded.");
+      clientRes.end("429 Too Many Requests: Rate limit exceeded.", () => {
+        clientReq.socket.destroy();
+      });
       requestCounter.inc({ method, status: 429 });
-      return; // Terminate the connection
+      return;
     }
 
     // Start the latency timer for normal traffic
@@ -87,7 +99,9 @@ export class ProxyServer {
         "Blocked unauthenticated HTTP request",
       );
       clientRes.writeHead(401, { "Content-Type": "application/json" });
-      clientRes.end(JSON.stringify({ error: "Unauthorized" }));
+      clientRes.end(JSON.stringify({ error: "Unauthorized" }), () => {
+        clientReq.socket.destroy();
+      });
       return; // Kill the execution path here
     }
 
@@ -134,10 +148,7 @@ export class ProxyServer {
             { err },
             "Proxy Response Pipeline Error: Failed to stream backend response",
           );
-          if (!clientRes.headersSent) {
-            clientRes.writeHead(502);
-          }
-          clientRes.end();
+          if (!clientReq.socket.destroyed) clientReq.socket.destroy();
           requestCounter.inc({ method, status: 502 });
           endTimer({ method, status: 502 });
         });
@@ -150,12 +161,19 @@ export class ProxyServer {
         "Client Request Pipeline Error: Failed to stream client payload",
       );
       if (!proxyReq.destroyed) proxyReq.destroy();
-      // If the backend violently rejects the connection (ECONNREFUSED), terminate the client's hanging request with a 502.
-      if (!clientRes.writableEnded) {
-        if (!clientRes.headersSent) {
-          clientRes.writeHead(502, { "Content-Type": "text/plain" });
-        }
-        clientRes.end("502 Bad Gateway");
+      // If the backend violently rejects the connection (ECONNREFUSED) before we start streaming
+      if (!clientRes.headersSent) {
+        clientRes.writeHead(502, {
+          "Content-Type": "text/plain",
+          Connection: "close", // Explicitly tell client protocol to drop
+        });
+        // Send the 502, then execute the RST guillotine to free the FD
+        clientRes.end("502 Bad Gateway", () => {
+          if (!clientReq.socket.destroyed) clientReq.socket.destroy();
+        });
+      } else {
+        // If we were mid-stream and it corrupted, we cannot send headers. Drop the RST guillotine instantly.
+        if (!clientReq.socket.destroyed) clientReq.socket.destroy();
       }
     });
   }
