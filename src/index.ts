@@ -6,11 +6,56 @@ import { ProxyServer } from "./proxy/server.js";
 import { buildRouterFromConfig } from "./config/parser.js";
 import { HealthChecker } from "./routing/health.js";
 import { logger } from "./utils/logger.js";
+import { Lifecycle } from "./utils/lifecycle.js";
 
 const configPath = path.resolve(process.cwd(), "torus.yaml");
 
 if (cluster.isPrimary) {
-  // --- THE MASTER PROCESS ---
+  /**
+   * -------------------
+   * THE MASTER PROCESS
+   * -------------------
+   */
+
+  // --- Graceful Shutdown ---
+  let isShuttingDown = false;
+  // 1. The Master Interceptor
+  const initiateClusterTeardown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    logger.info(
+      { signal },
+      "Master received termination signal. Broadcasting to workers...",
+    );
+
+    // Send the execution order to all living workers via IPC
+    for (const id in cluster.workers) {
+      cluster.workers[id]?.send({ type: "SHUTDOWN" });
+    }
+  };
+
+  process.on("SIGTERM", () => initiateClusterTeardown("SIGTERM"));
+  process.on("SIGINT", () => initiateClusterTeardown("SIGINT")); // For Ctrl+C in terminal
+
+  // 2. Halt Resurrection
+  cluster.on("exit", (worker, code, signal) => {
+    if (isShuttingDown) {
+      logger.info(`Worker ${worker.process.pid} died cleanly during shutdown.`);
+
+      // If the last worker just died, the Master can finally exit
+      if (Object.keys(cluster.workers || {}).length === 0) {
+        logger.info("All workers dead. Master exiting with code 0.");
+        process.exit(0);
+      }
+    } else {
+      // Normal operation: Worker crashed, boot a new one
+      logger.warn(
+        `Worker ${worker.process.pid} crashed. Forking a replacement...`,
+      );
+      cluster.fork();
+    }
+  });
+
   logger.info(
     {
       pid: process.pid,
@@ -31,19 +76,6 @@ if (cluster.isPrimary) {
   for (let i = 0; i < numCPUs; i++) {
     cluster.fork();
   }
-
-  // If a worker crashes instantly replace it
-  cluster.on("exit", (worker, code, signal) => {
-    logger.warn(
-      {
-        pid: worker.process.pid,
-        exitCode: code,
-        signal: signal,
-      },
-      "Worker died. Booting a replacement...",
-    );
-    cluster.fork();
-  });
 
   // --- THE WATCHER (Zero-Downtime Hot Reload) ---
   let debounceTimer: NodeJS.Timeout;
@@ -79,8 +111,21 @@ if (cluster.isPrimary) {
     }
   });
 } else {
-  // --- THE WORKER PROCESS ---
+  /**-------------------
+   * THE WORKER PROCESS
+   * -------------------
+   */
   try {
+    // 3. The Worker Trigger
+    process.on("message", (msg: any) => {
+      if (msg && msg.type === "SHUTDOWN") {
+        Lifecycle.executeTeardown("IPC_SHUTDOWN");
+      }
+    });
+
+    // Fallback: If the worker receives a direct OS signal somehow
+    process.on("SIGTERM", () => Lifecycle.executeTeardown("SIGTERM"));
+    process.on("SIGINT", () => Lifecycle.executeTeardown("SIGINT"));
     // 1. Build the routing state machine
     const { router, port, servers } = buildRouterFromConfig(configPath);
 
