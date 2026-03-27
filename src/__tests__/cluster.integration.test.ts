@@ -42,7 +42,7 @@ describe("Torus Cluster Lifecycle Architecture", () => {
       // 2. The Log Parser State Machine
       masterProcess.stdout!.on("data", (data) => {
         const output = data.toString();
-        // console.log(output); // Raw logs - Uncomment to debug
+        console.log(output); // Raw logs - Uncomment to debug
 
         // STEP 1: Find a living worker PID
         if (
