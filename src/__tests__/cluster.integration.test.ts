@@ -32,6 +32,10 @@ describe("Torus Cluster Lifecycle Architecture", () => {
       // 1. Boot the Master process
       masterProcess = spawn("node", nodeArgs, {
         stdio: ["pipe", "pipe", "pipe", "ipc"],
+        env: {
+          ...process.env,
+          JWT_SECRET: "dummy_test_secret_for_ci_pipeline_only",
+        },
       });
 
       let masterPid = masterProcess.pid;
