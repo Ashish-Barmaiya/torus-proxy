@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import * as path from "node:path";
 import { jest, describe, it, expect, afterEach } from "@jest/globals";
 import { fileURLToPath } from "node:url";
+import * as fs from "node:fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,9 +23,14 @@ describe("Torus Cluster Lifecycle Architecture", () => {
   it("should self-heal a violently killed worker, then gracefully shutdown on SIGINT", () => {
     return new Promise<void>((resolve, reject) => {
       const entryPoint = path.resolve(__dirname, "../../dist/index.js");
+      const envPath = path.resolve(process.cwd(), ".env");
+
+      const nodeArgs = fs.existsSync(envPath)
+        ? ["--env-file=.env", entryPoint]
+        : [entryPoint];
 
       // 1. Boot the Master process
-      masterProcess = spawn("node", ["--env-file=.env", entryPoint], {
+      masterProcess = spawn("node", nodeArgs, {
         stdio: ["pipe", "pipe", "pipe", "ipc"],
       });
 
