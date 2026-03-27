@@ -37,6 +37,13 @@ if (cluster.isPrimary) {
   process.on("SIGTERM", () => initiateClusterTeardown("SIGTERM"));
   process.on("SIGINT", () => initiateClusterTeardown("SIGINT")); // For Ctrl+C in terminal
 
+  // Testing Backdoor for Windows OS limitations
+  process.on("message", (msg: any) => {
+    if (msg && msg.type === "TEST_SHUTDOWN") {
+      initiateClusterTeardown("TEST_SHUTDOWN");
+    }
+  });
+
   // 2. Halt Resurrection
   cluster.on("exit", (worker, code, signal) => {
     if (isShuttingDown) {
@@ -155,7 +162,7 @@ if (cluster.isPrimary) {
           pid: process.pid,
           port: port,
         },
-        "Worker listening for Secure HTTPS traffic",
+        `Worker ${process.pid} listening for Secure HTTPS traffic`,
       );
     });
 
