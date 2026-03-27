@@ -13,6 +13,7 @@ import {
 } from "../utils/metrics.js";
 import { RedisRateLimiter } from "../security/rateLimiter.js";
 import { JwtAuthenticator } from "../security/authenticator.js";
+import { Lifecycle } from "../utils/lifecycle.js";
 
 export class ProxyServer {
   private router: Router;
@@ -36,6 +37,24 @@ export class ProxyServer {
 
   public listen(port: number, callback?: () => void) {
     this.server.listen(port, callback);
+
+    // Register the teardown sequence with Lifecycle Manager
+    Lifecycle.onShutdown(() => {
+      return new Promise((resolve) => {
+        logger.info("Closing TCP Server to new connections...");
+
+        // Instantly drop all hanging KEEP-ALIVE sockets that are not actively streaming
+        if ("closeIdleConnection" in this.server) {
+          this.server.closeIdleConnections();
+        }
+
+        // Stop accepting new connections and wait for active streams to finish
+        this.server.close(() => {
+          logger.info("TCP Server fully drained and closed");
+          resolve();
+        });
+      });
+    });
   }
 
   /* --------------------

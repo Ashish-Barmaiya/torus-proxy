@@ -46,6 +46,12 @@ jobs:
 
     - name: Compile TypeScript (Syntax & Type Check)
       run: npm run build
+    
+    # Generate dummy certificates for the test environment
+    - name: Generate Dummy TLS Certificates
+      run: |
+        mkdir -p certs
+        openssl req -nodes -new -x509 -keyout certs/key.pem -out certs/cert.pem -days 365 -subj "/CN=localhost"
 
     - name: Execute Integration & Unit Tests
-      run: npm test
+      run: npm test -- --runInBand

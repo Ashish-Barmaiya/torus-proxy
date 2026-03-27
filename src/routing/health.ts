@@ -1,6 +1,7 @@
 import * as net from "node:net";
 import { BackendServer } from "./backend.js";
 import { logger } from "../utils/logger.js";
+import { Lifecycle } from "../utils/lifecycle.js";
 
 export class HealthChecker {
   private servers: Set<BackendServer>;
@@ -24,6 +25,12 @@ export class HealthChecker {
     this.timerId = setInterval(() => {
       this.servers.forEach((server) => this.ping(server));
     }, this.intervalMs);
+
+    // Register the teardown sequence with the Lifecycle Manager
+    Lifecycle.onShutdown(() => {
+      logger.info("Halting active health monitoring...");
+      this.stop();
+    });
   }
 
   // Safely destroy the loop
