@@ -8,7 +8,9 @@ import { HealthChecker } from "./routing/health.js";
 import { logger } from "./utils/logger.js";
 import { Lifecycle } from "./utils/lifecycle.js";
 
-const configPath = path.resolve(process.cwd(), "torus.yaml");
+const configPath = process.env.CONFIG_PATH
+  ? path.resolve(process.env.CONFIG_PATH)
+  : path.resolve(process.cwd(), "torus.yaml");
 
 if (cluster.isPrimary) {
   /**
@@ -147,9 +149,13 @@ if (cluster.isPrimary) {
     healthChecker.start();
 
     // 4. Load the Cryptographic Keys into Memory
+    const certBasePath = process.env.CERT_PATH
+      ? path.resolve(process.env.CERT_PATH)
+      : path.resolve(process.cwd(), "certs");
+
     const tlsOptions = {
-      key: fs.readFileSync(path.resolve(process.cwd(), "certs", "key.pem")),
-      cert: fs.readFileSync(path.resolve(process.cwd(), "certs", "cert.pem")),
+      key: fs.readFileSync(path.join(certBasePath, "key.pem")),
+      cert: fs.readFileSync(path.join(certBasePath, "cert.pem")),
     };
 
     // 5. Inject cofigured Router into the raw http server

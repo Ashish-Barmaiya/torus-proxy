@@ -30,11 +30,13 @@ describe("Torus Cluster Lifecycle Architecture", () => {
         : [entryPoint];
 
       // 1. Boot the Master process
+      const expectedConfigPath = path.resolve(__dirname, "../../../torus.yaml");
       masterProcess = spawn("node", nodeArgs, {
         stdio: ["pipe", "pipe", "pipe", "ipc"],
         env: {
           ...process.env,
           JWT_SECRET: "dummy_test_secret_for_ci_pipeline_only",
+          CONFIG_PATH: expectedConfigPath,
         },
       });
 
