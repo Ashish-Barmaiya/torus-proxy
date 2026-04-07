@@ -228,7 +228,7 @@ export class ProxyServer {
 
     // 2. JWT Authentication
     if (!this.authenticator.verify(req.headers.authorization)) {
-      wsUpgradesTotal.inc({ status: "rejected_unauthorized" }); // Update your metrics
+      wsUpgradesTotal.inc({ status: "rejected_unauthorized" }); // Update metrics
       logger.warn(
         { ip: clientIp, path: req.url },
         "Blocked unauthenticated WS upgrade",
