@@ -25,6 +25,10 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	transport.Forward(w, r, backend.URL)
 }
 
+func (s *Server) Handler() http.Handler {
+	return http.HandlerFunc(s.httpHandler)
+}
+
 func (s *Server) Start(addr string) error {
 	http.HandleFunc("/", s.httpHandler)
 	return http.ListenAndServe(addr, nil)
