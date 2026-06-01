@@ -20,4 +20,3 @@ func Forward(w http.ResponseWriter, r *http.Request, target string) {
 
 	proxy.ServeHTTP(w, r)
 }
-

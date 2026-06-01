@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"net/http"
+	"time"
 	"torus-proxy/internal/routing"
 	"torus-proxy/internal/transport"
 )
@@ -30,6 +31,17 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) Start(addr string) error {
-	http.HandleFunc("/", s.httpHandler)
-	return http.ListenAndServe(addr, nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", s.httpHandler)
+
+	srv := &http.Server{
+		Addr: addr,
+		Handler: mux,
+
+		ReadTimeout: 5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout: 120 * time.Second,
+	}
+
+	return srv.ListenAndServe()
 }
