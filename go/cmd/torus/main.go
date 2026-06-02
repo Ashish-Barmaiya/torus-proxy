@@ -10,10 +10,17 @@ import (
 
 func main() {
 	// Ceate backends
-	backends := []*upstream.Backend {
-		{URL: "http://localhost:3001"},
-		{URL: "http://localhost:3002"},
+	b1, err := upstream.NewBackend("http://localhost:3001")
+	if err != nil {
+		log.Fatalf("failed to create backend 1: %v", err)
 	}
+
+	b2, err := upstream.NewBackend("http://localhost:3002")
+	if err != nil {
+		log.Fatalf("failed to create backend 2: %v", err)
+	}
+
+	backends := []*upstream.Backend{b1, b2}
 
 	// Create service
 	svc := service.NewService(backends)
