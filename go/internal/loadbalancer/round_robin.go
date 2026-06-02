@@ -7,15 +7,15 @@ import (
 
 type RoundRobin struct {
 	backends []*upstream.Backend
-	index uint64
+	index    atomic.Uint64
 }
 
-func NewRoundRobin(backends []*upstream.Backend) * RoundRobin {
+func NewRoundRobin(backends []*upstream.Backend) *RoundRobin {
 	return &RoundRobin{backends: backends}
 }
 
 func (r *RoundRobin) Next() *upstream.Backend {
-	i := atomic.AddUint64(&r.index, 1)
-	math := int(i)%len(r.backends)
+	i := r.index.Add(1)
+	math := int(i) % len(r.backends)
 	return r.backends[math]
 }
