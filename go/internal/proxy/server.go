@@ -17,9 +17,6 @@ func NewServer(router *routing.Router) *Server {
 
 // The HTTP Handler function
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
-	// create context at the very beginning
-	ctx := r.Context()
-
 	// find the correct service using routing logic
 	svc := s.router.Route(r.URL.Path)
 	if svc == nil {
@@ -30,11 +27,8 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	// find the next available backend
 	backend := svc.NextBackend()
 
-	// inject context in the request
-	reqWithCtx := r.WithContext(ctx)
-
 	// forward the request to the upstream connection pipeline
-	transport.Forward(w, reqWithCtx, backend.Proxy)
+	transport.Forward(w, r, backend.Proxy)
 }
 
 func (s *Server) Handler() http.Handler {
