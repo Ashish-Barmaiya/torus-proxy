@@ -12,7 +12,16 @@ import (
 	"torus-proxy/internal/upstream"
 )
 
-func setupProxy(backends []*upstream.Backend) *Server {
+func setupProxy(t *testing.T, targetURLs []string) *Server {
+	var backends []*upstream.Backend
+	for _, url := range targetURLs {
+		b, err := upstream.NewBackend(url)
+		if err != nil {
+			t.Fatalf("failed to build test backend node: %v", err)
+		}
+		backends = append(backends, b)
+	}
+
 	svc := service.NewService(backends)
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
@@ -25,9 +34,7 @@ func TestProxyFlow_Basic(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	proxy := setupProxy([]*upstream.Backend{
-		{URL: backend.URL},
-	})
+	proxy := setupProxy(t, []string{backend.URL})
 
 	req := httptest.NewRequest("GET", "/api", nil)
 	w := httptest.NewRecorder()
@@ -46,8 +53,33 @@ func TestProxyFlow_Basic(t *testing.T) {
 	}
 }
 
+func TestProxyFlow_HeadersAndTracing(t *testing.T) {
+	var capturedTrackingID string
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTrackingID = r.Header.Get("X-Request-ID")
+		w.Write([]byte("ok"))
+	}))
+
+	defer backend.Close()
+
+	proxy := setupProxy(t, []string{backend.URL})
+
+	req := httptest.NewRequest("GET", "/api", nil)
+	w := httptest.NewRecorder()
+
+	proxy.Handler().ServeHTTP(w, req)
+
+	if capturedTrackingID == "" {
+		t.Error("expected proxy to inject a tracing X-Request-ID, got empty string")
+	}
+	if len(capturedTrackingID) != 36 {
+		t.Errorf("expected standard crypto UUID format (36 chars), got length %d", len(capturedTrackingID))
+	}
+}
+
 func TestProxyFlow_NotFound(t *testing.T) {
-	proxy := setupProxy(nil)
+	proxy := setupProxy(t, nil)
 
 	req := httptest.NewRequest("GET", "/unknown", nil)
 	w := httptest.NewRecorder()
@@ -70,10 +102,7 @@ func TestProxyFlow_LoadBalancing(t *testing.T) {
 	}))
 	defer backend2.Close()
 
-	proxy := setupProxy([]*upstream.Backend{
-		{URL: backend1.URL},
-		{URL: backend2.URL},
-	})
+	proxy := setupProxy(t, []string{backend1.URL, backend2.URL})
 
 	results := make(map[string]int)
 
@@ -98,9 +127,7 @@ func TestProxyFlow_Concurrency(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	proxy := setupProxy([]*upstream.Backend{
-		{URL: backend.URL},
-	})
+	proxy := setupProxy(t, []string{backend.URL})
 
 	var wg sync.WaitGroup
 
@@ -128,11 +155,9 @@ func TestProxyFlow_BackendFailure(t *testing.T) {
 		w.Write([]byte("ok"))
 	}))
 
-	proxy := setupProxy([]*upstream.Backend{
-		{URL: backend.URL},
-	})
+	proxy := setupProxy(t, []string{backend.URL})
 
-	// simulate failure
+	// simulate failure by forcing connection closure error
 	backend.Close()
 
 	req := httptest.NewRequest("GET", "/api", nil)

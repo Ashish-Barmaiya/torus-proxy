@@ -1,6 +1,7 @@
 package upstream
 
 import (
+	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -24,6 +25,8 @@ func NewBackend(targetUrl string) (*Backend, error) {
 
 	proxy := httputil.NewSingleHostReverseProxy(u)
 
+	proxy.Director = nil
+
 	// Custom connection pool
 	customTransport := &http.Transport{
 		DialContext: (&net.Dialer{
@@ -40,6 +43,9 @@ func NewBackend(targetUrl string) (*Backend, error) {
 	}
 
 	proxy.Rewrite = func(pr *httputil.ProxyRequest) {
+		pr.Out.URL.Scheme = u.Scheme
+		pr.Out.URL.Host = u.Host
+
 		// Extract client IP
 		clientIP, _, err := net.SplitHostPort(pr.In.RemoteAddr)
 		if err != nil {
@@ -76,6 +82,7 @@ func NewBackend(targetUrl string) (*Backend, error) {
 	proxy.Transport = customTransport
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		log.Printf("proxy error: %v", err)
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 	}
 
