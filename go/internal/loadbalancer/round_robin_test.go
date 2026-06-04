@@ -6,16 +6,22 @@ import (
 )
 
 func TestRoundRobin_Distribution(t *testing.T) {
-	backends := []*upstream.Backend{
-		{URL: "S1"},
-		{URL: "S2"},
+	b1, err := upstream.NewBackend("http://localhost:3001")
+	if err != nil {
+		t.Fatalf("failed to create backend: %v", err)
 	}
 
+	b2, err := upstream.NewBackend("http://localhost:3002")
+	if err != nil {
+		t.Fatalf("failed to create backend: %v", err)
+	}
+
+	backends := []*upstream.Backend{b1, b2}
 	rr := NewRoundRobin(backends)
 
 	counts := map[string]int{
-		"S1": 0,
-		"S2": 0,
+		"http://localhost:3001": 0,
+		"http://localhost:3002": 0,
 	}
 
 	for i := 0; i < 10; i++ {
@@ -23,20 +29,19 @@ func TestRoundRobin_Distribution(t *testing.T) {
 		counts[b.URL]++
 	}
 
-	if counts["S1"] == 0 || counts["S2"] == 0 {
+	if counts["http://localhost:3001"] == 0 || counts["http://localhost:3002"] == 0 {
 		t.Fatalf("expected both backends to be used, got %v", counts)
 	}
 }
 
 func TestRoundRobin_Order(t *testing.T) {
-	backends := []*upstream.Backend{
-		{URL: "S1"},
-		{URL: "S2"},
-	}
+	b1, _ := upstream.NewBackend("http://localhost:3001")
+	b2, _ := upstream.NewBackend("http://localhost:3002")
 
+	backends := []*upstream.Backend{b1, b2}
 	rr := NewRoundRobin(backends)
 
-	expected := []string{"S2", "S1", "S2", "S1"}
+	expected := []string{"http://localhost:3002", "http://localhost:3001", "http://localhost:3002", "http://localhost:3001"}
 
 	for i, exp := range expected {
 		b := rr.Next()
