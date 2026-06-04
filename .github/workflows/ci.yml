@@ -1,62 +1,21 @@
-name: Torus Pipeline
+name: Go CI
 
-# Trigger the pipeline on pushes or pull requests to the main branch
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
-  build-and-test:
+  test:
     runs-on: ubuntu-latest
-    
-    # Run the tests across multiple Node versions to guarantee compatibility
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Force Node 24 for @actions/setup-node
-      
-    defaults:
-      run:
-        working-directory: node
-
-    strategy:
-      matrix:
-        node-version: [20.x, 22.x]
-
-    # Start a live Redis container natively in the GitHub Actions runner
-    services:
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
-    - name: Checkout codebase
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        cache-dependency-path: node/package-lock.json
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
 
-    - name: Install dependencies
-      run: npm ci
-
-    - name: Compile TypeScript (Syntax & Type Check)
-      run: npm run build
-    
-    # Generate dummy certificates for the test environment
-    - name: Generate Dummy TLS Certificates
-      run: |
-        mkdir -p certs
-        openssl req -nodes -new -x509 -keyout certs/key.pem -out certs/cert.pem -days 365 -subj "/CN=localhost"
-
-    - name: Execute Integration & Unit Tests
-      run: npm test -- --runInBand
+      - name: Run tests
+        run: go test -v -race -cover ./...
