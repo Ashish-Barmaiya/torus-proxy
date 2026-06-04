@@ -6,30 +6,37 @@ import (
 	"torus-proxy/internal/upstream"
 )
 
-func TestRouter_BasicRouting(t *testing.T) {
+func TestRouter_LongestPrefixMatch(t *testing.T) {
 	router := NewRouter()
 
-	backends := []*upstream.Backend{
-		{URL: "http://localhost:3001"},
+	b1, _ := upstream.NewBackend("http://localhost:3001")
+	svcApi := service.NewService([]*upstream.Backend{b1})
+
+	b2, _ := upstream.NewBackend("http://localhost:3002")
+	svcApiV1 := service.NewService([]*upstream.Backend{b2})
+
+	router.AddRoute("/api", svcApi)
+	router.AddRoute("/api/v1", svcApiV1)
+
+	// Case 1: Exact Match
+	if res := router.Route("/api"); res != svcApi {
+		t.Error("expected /api to map to svcApi")
 	}
 
-	svc := service.NewService(backends)
+	// Case 2: Deeper Path Segment Match
+	if res := router.Route("/api/v1/users"); res != svcApiV1 {
+		t.Error("expected /api/v1/users to map to svcApiV1 (longest prefix match)")
+	}
 
-	router.AddRoute("/api", svc)
-
-	result := router.Route("/api")
-
-	if result == nil {
-		t.Fatal("expected service, got nil")
+	// Case 3: Edge Case Word-Collision Guardrail Check
+	if res := router.Route("/api-status"); res != nil {
+		t.Errorf("expected /api-status to return nil due to segment boundary check, got %v", res)
 	}
 }
 
 func TestRouter_NotFound(t *testing.T) {
 	router := NewRouter()
-
-	result := router.Route("/unknown")
-
-	if result != nil {
+	if result := router.Route("/unknown"); result != nil {
 		t.Fatal("expected nil for unknown route")
 	}
 }
