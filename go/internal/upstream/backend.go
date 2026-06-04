@@ -6,6 +6,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Backend struct {
@@ -35,6 +37,40 @@ func NewBackend(targetUrl string) (*Backend, error) {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		ResponseHeaderTimeout: 5 * time.Second,
+	}
+
+	proxy.Rewrite = func(pr *httputil.ProxyRequest) {
+		// Extract client IP
+		clientIP, _, err := net.SplitHostPort(pr.In.RemoteAddr)
+		if err != nil {
+			clientIP = pr.In.RemoteAddr
+		}
+
+		// X-Forwarder-For
+		if prior := pr.In.Header.Get("X-Forwarded-For"); prior != "" {
+			pr.Out.Header.Set("X-Forwarded-For", prior+", "+clientIP)
+		} else {
+			pr.Out.Header.Set("X-Forwarded-For", clientIP)
+		}
+
+		// X-Forwarder-Proto
+		if pr.In.TLS != nil {
+			pr.Out.Header.Set("X-Forwarder-Proto", "https")
+		} else {
+			pr.Out.Header.Set("X-Forwarder-Proto", "http")
+		}
+
+		// X-Forwarded-Host
+		if host := pr.In.Host; host != "" {
+			pr.Out.Header.Set("X-Forwarded-Host", host)
+		}
+
+		// X-Request-ID
+		reqID := pr.In.Header.Get("X-Request-ID")
+		if reqID == "" {
+			reqID = uuid.NewString()
+		}
+		pr.Out.Header.Set("X-Request-ID", reqID)
 	}
 
 	proxy.Transport = customTransport
