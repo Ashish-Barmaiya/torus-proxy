@@ -50,3 +50,18 @@ func TestRoundRobin_Order(t *testing.T) {
 		}
 	}
 }
+
+func TestRoundRobin_SkipsUnhealthy(t *testing.T) {
+	b1, _ := upstream.NewBackend("http://localhost:3001")
+	b2, _ := upstream.NewBackend("http://localhost:3002")
+	b2.SetHealthy(false)
+
+	backends := []*upstream.Backend{b1, b2}
+	rr := NewRoundRobin(backends)
+
+	for i := 0; i < 100; i++ {
+		if b := rr.Next(); b.URL != b1.URL {
+			t.Fatalf("expected only healthy backend, got %s", b.URL)
+		}
+	}
+}

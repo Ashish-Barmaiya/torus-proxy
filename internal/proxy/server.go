@@ -27,6 +27,11 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	// find the next available backend
 	backend := svc.NextBackend()
 
+	if backend == nil {
+		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable) // returns 503
+		return
+	}
+
 	// forward the request to the upstream connection pipeline
 	transport.Forward(w, r, backend.Proxy)
 }

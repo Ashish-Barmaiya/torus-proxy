@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
+	"time"
+	"torus-proxy/internal/health"
 	"torus-proxy/internal/proxy"
 	"torus-proxy/internal/routing"
 	"torus-proxy/internal/service"
@@ -21,6 +25,32 @@ func main() {
 	}
 
 	backends := []*upstream.Backend{b1, b2}
+
+	// Health check
+	healthClient := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background()) // root context for entire proxy
+	defer cancel()
+
+	for _, b := range backends {
+		checker := &health.HTTPChecker{
+			URL:    b.URL,
+			Client: healthClient,
+			Path:   "/health",
+		}
+
+		backend := b
+		health.StartProber(
+			ctx,
+			checker,
+			5*time.Second, // interval between every check
+			2*time.Second, // per-check timeout
+			func() { backend.SetHealthy(true) },
+			func() { backend.SetHealthy(false) },
+		)
+	}
 
 	// Create service
 	svc := service.NewService(backends)

@@ -6,14 +6,26 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 type Backend struct {
-	URL   string
-	Proxy *httputil.ReverseProxy
+	URL     string
+	Proxy   *httputil.ReverseProxy
+	healthy atomic.Bool
+}
+
+// IsHealthy returns true if the backend is currently healthy
+func (b *Backend) IsHealthy() bool {
+	return b.healthy.Load()
+}
+
+// SetHealthy updates the health status
+func (b *Backend) SetHealthy(val bool) {
+	b.healthy.Store(val)
 }
 
 // This creates new backend
@@ -86,8 +98,10 @@ func NewBackend(targetUrl string) (*Backend, error) {
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 	}
 
-	return &Backend{
+	b := &Backend{
 		URL:   targetUrl,
 		Proxy: proxy,
-	}, nil
+	}
+	b.healthy.Store(true)
+	return b, nil
 }
