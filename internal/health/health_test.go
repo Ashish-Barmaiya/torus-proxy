@@ -127,3 +127,34 @@ func TestStartProber_Lifecycle(t *testing.T) {
 		t.Fatal("onUnhealthy should stop firing once the backend recovers")
 	}
 }
+
+// Self-Healing Test (Primary Panic -> Recover -> Resurrect)
+func TestStartProber_PrimaryPanicRecovery(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mock := &MockChecker{shouldPanic: true}
+
+	var unhealthyCount atomic.Int32
+
+	health.StartProber(
+		ctx,
+		mock,
+		10*time.Millisecond,
+		2*time.Millisecond,
+		func() {},
+		func() { unhealthyCount.Add(1) },
+	)
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Panic switch off
+	mock.shouldPanic = false
+
+	time.Sleep(2200 * time.Millisecond)
+
+	// Verify resurrection
+	if mock.checkCount.Load() <= 1 {
+		t.Fatalf("Self-healing failed. Expected checkCount to grow past 1 after resurrection, got %d", mock.checkCount.Load())
+	}
+}
