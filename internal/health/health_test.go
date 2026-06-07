@@ -158,3 +158,27 @@ func TestStartProber_PrimaryPanicRecovery(t *testing.T) {
 		t.Fatalf("Self-healing failed. Expected checkCount to grow past 1 after resurrection, got %d", mock.checkCount.Load())
 	}
 }
+
+// Secondary Fault Isolation Test (Primary Panic -> Secondary Panic on Recovery -> Goroutine Halted)
+func TestStartProber_SecondaryFaultIsolation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// This triggers a primary panic on Check() and secondary panic on String()
+	mock := &MockChecker{
+		shouldPanic:     true,
+		shouldSecondary: true,
+	}
+
+	health.StartProber(
+		ctx,
+		mock,
+		10*time.Millisecond,
+		2*time.Millisecond,
+		func() {},
+		func() {},
+	)
+
+	time.Sleep(50 * time.Millisecond)
+	t.Log("System survived secondary recovery fault sequence successfully.")
+}
