@@ -15,7 +15,16 @@ func NewRoundRobin(backends []*upstream.Backend) *RoundRobin {
 }
 
 func (r *RoundRobin) Next() *upstream.Backend {
-	i := r.index.Add(1)
-	math := int(i) % len(r.backends)
-	return r.backends[math]
+	if len(r.backends) == 0 {
+		return nil
+	}
+
+	for i := 0; i < len(r.backends); i++ {
+		idx := r.index.Add(1) % uint64(len(r.backends))
+		backend := r.backends[idx]
+		if backend.IsHealthy() {
+			return backend
+		}
+	}
+	return nil // if all unhealthy
 }
