@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -53,23 +54,54 @@ func TestHTTPChecker_Unhealthy(t *testing.T) {
 }
 
 type MockChecker struct {
+	mu              sync.Mutex
 	errToReturn     error
 	shouldPanic     bool
 	shouldSecondary bool
 	checkCount      atomic.Int32
 }
 
+// Setter to set error
+func (m *MockChecker) SetError(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.errToReturn = err
+}
+
+// Setter to set panic
+func (m *MockChecker) SetPanic(panicState bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.shouldPanic = panicState
+}
+
+// Setter to set secondary panic
+func (m *MockChecker) SetSecondaryPanic(secondaryState bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.shouldSecondary = secondaryState
+}
+
 func (m *MockChecker) Check(ctx context.Context) error {
 	m.checkCount.Add(1)
 
-	if m.shouldPanic {
+	m.mu.Lock()
+	panicState := m.shouldPanic
+	errState := m.errToReturn
+	m.mu.Unlock()
+
+	if panicState {
 		panic("primary network driver failure")
 	}
-	return m.errToReturn
+	return errState
 }
 
 func (m *MockChecker) String() string {
-	if m.shouldSecondary {
+	m.mu.Lock()
+	secondaryState := m.shouldSecondary
+	m.mu.Unlock()
+
+	if secondaryState {
 		panic("secondary nested fault during string formatting")
 	}
 	return "MockChecker"
@@ -102,7 +134,7 @@ func TestStartProber_Lifecycle(t *testing.T) {
 	}
 
 	// Verify Failure
-	mock.errToReturn = errors.New("backend timeout connection refused")
+	mock.SetError(errors.New("backend timeout connection refused"))
 	currentHealthySnapshot := healthyCount.Load()
 
 	time.Sleep(35 * time.Millisecond)
@@ -115,7 +147,7 @@ func TestStartProber_Lifecycle(t *testing.T) {
 	}
 
 	// Verify Auto-Recovery
-	mock.errToReturn = nil
+	mock.SetError(nil)
 	currentUnhealthySnapshot := unhealthyCount.Load()
 
 	time.Sleep(35 * time.Millisecond)
@@ -133,7 +165,8 @@ func TestStartProber_PrimaryPanicRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mock := &MockChecker{shouldPanic: true}
+	mock := &MockChecker{}
+	mock.SetPanic(true)
 
 	var unhealthyCount atomic.Int32
 
@@ -149,7 +182,7 @@ func TestStartProber_PrimaryPanicRecovery(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Panic switch off
-	mock.shouldPanic = false
+	mock.SetPanic(false)
 
 	time.Sleep(2200 * time.Millisecond)
 
@@ -165,10 +198,9 @@ func TestStartProber_SecondaryFaultIsolation(t *testing.T) {
 	defer cancel()
 
 	// This triggers a primary panic on Check() and secondary panic on String()
-	mock := &MockChecker{
-		shouldPanic:     true,
-		shouldSecondary: true,
-	}
+	mock := &MockChecker{}
+	mock.SetPanic(true)
+	mock.SetSecondaryPanic(true)
 
 	health.StartProber(
 		ctx,
