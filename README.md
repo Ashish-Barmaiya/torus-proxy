@@ -129,14 +129,14 @@ Torus will start accepting HTTP traffic on `:8080` and begin health-checking all
 
 ## Benchmarks
 
-Tested on a constrained **Intel i3-1115G4 (2C/4T), 8 GB RAM** — full results in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+Tested on a constrained **Intel i3-1115G4 (2C/4T), 8 GB RAM** with `wrk` and native Go mock backends — full results in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
-| Version | Scenario                  | Throughput (Avg) | Latency (Avg) | Latency (P99) |
-| ------- | ------------------------- | ---------------- | ------------- | ------------- |
-| **Go**  | Raw HTTP, 100 connections | **6,044 req/s**  | 16.06 ms      | 14 ms         |
-| Node.js | Raw HTTP, 100 connections | 1,647 req/s      | —             | —             |
+| Scenario                              | Throughput         | Avg Latency | Max Tail Latency |
+| ------------------------------------- | ------------------ | ----------- | ---------------- |
+| **Full Production Proxying** (`/api`)  | **17,865 req/sec** | 6.12 ms     | 45.32 ms         |
+| **Short-Circuit Memory Path** (`/api2`)| **98,565 req/sec** | 10.21 ms    | 86.63 ms         |
 
-> **~3.6× throughput improvement** over the Node.js implementation on identical hardware. See [BENCHMARKS.md](docs/BENCHMARKS.md) for the full comparison.
+> **~10.8× throughput improvement** over the original Node.js implementation on identical hardware. See [BENCHMARKS.md](docs/BENCHMARKS.md) for the full methodology and historical comparison.
 
 ---
 
@@ -176,6 +176,7 @@ torus-proxy/
 │   ├── ARCHITECTURE.md            # Detailed architecture specification
 │   └── BENCHMARKS.md              # Performance benchmarks (Go vs Node.js)
 ├── torus.yaml                     # Proxy configuration
+├── mock_backend.go                # Minimal Go mock backend for benchmarking
 ├── go.mod
 ├── go.sum
 └── .github/
