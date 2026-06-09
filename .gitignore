@@ -21,3 +21,8 @@ certs/
 
 # Misc
 migration_plan.md
+
+# Go compiled binaries
+torus-proxy
+torus-proxy.exe
+torus-linux-arm64

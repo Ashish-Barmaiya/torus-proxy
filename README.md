@@ -2,13 +2,11 @@
 
 # TORUS
 
-**A Layer 7 Reverse Proxy & Edge API Gateway built natively on Node.js.**
+**A Layer 7 Reverse Proxy & Edge API Gateway built in Go.**
 
-*High-throughput traffic routing, TLS termination, redis-backed distributed rate limiting - engineered directly on Node.js core modules.*
+_High-throughput traffic routing, active health checking, round-robin load balancing — engineered with Go's standard library and zero-copy I/O._
 
-[![Node.js](https://img.shields.io/badge/Node.js-22+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Redis](https://img.shields.io/badge/Redis-7+-DC382D?logo=redis&logoColor=white)](https://redis.io/)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -17,57 +15,52 @@
 
 ## The Objective
 
-Torus is a Layer 7 Reverse Proxy and Edge API Gateway built entirely from scratch using Node.js core modules (`node:http`, `node:https`, `node:cluster`, `node:net`). It was engineered to explore the low-level mechanics of distributed systems, stream processing, and network security without relying on abstracted web frameworks like Express or Fastify. Torus demonstrates how production-grade routing and high-availability infrastructure actually operate at the OS and TCP level.
+Torus is a Layer 7 Reverse Proxy and Edge API Gateway rewritten from the ground up in Go. Originally prototyped in Node.js/TypeScript, the project was migrated to Go to leverage goroutine-based concurrency, `httputil.ReverseProxy` for zero-copy stream piping, and the Go standard library's native networking stack. Torus demonstrates how production-grade traffic routing, active health probing, and load balancing operate at the systems level — without heavyweight frameworks or dependency trees.
+
+> The original Node.js/TypeScript implementation is preserved in the [`node/`](node/) directory for reference and benchmark comparison.
 
 ---
 
 ## Features
 
-| Feature | Description |
-|---|---|
-|**Reverse Proxying** | Streams client requests to upstream backends using native `stream.pipe()`, keeping the V8 heap uninvolved in payload transfer. |
-|**Longest-Prefix Routing** | Resolves incoming URIs to upstream clusters using a longest-prefix-match algorithm, parsed from `torus.yaml`. |
-|**Round-Robin Load Balancing** | Distributes traffic evenly across healthy servers. The strategy pattern (`ILoadBalancingStrategy`) is pluggable for future algorithms. |
-|**Active Health Checking** | Probes every backend with raw TCP socket connections (`node:net`) every 10 seconds. Unhealthy servers are pruned from rotation instantly. |
-|**TLS Termination** | Decrypts HTTPS at the proxy edge, forwarding plain HTTP internally — saving backend CPU cycles. Injects `X-Forwarded-For` and `X-Forwarded-Proto` headers. |
-|**Distributed Rate Limiting** | Atomic Token Bucket algorithm executed as a Lua script inside Redis, guaranteeing race-condition-free global rate limiting across all worker processes. |
-|**Zero-Downtime Hot Reload** | The master process watches `torus.yaml` for changes. On a validated update, it broadcasts an IPC signal to all workers, which hot-swap their routing tables without dropping a single TCP connection. |
-|**Multi-Core Clustering** | Forks one worker per CPU core. The OS kernel distributes incoming connections across workers. If a worker dies, the master automatically replaces it. |
-|**Prometheus Metrics** | Exposes a `/metrics` endpoint with request counters, latency histograms, event loop lag, and V8 heap statistics via `prom-client`. |
-|**Structured Logging** | Emits NDJSON logs via Pino (production) or pretty-printed colorized output (development). Log level is configurable via `LOG_LEVEL` env var. |
+| Feature                        | Description                                                                                                                                                                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Reverse Proxying**           | Forwards client requests to upstream backends using Go's `httputil.ReverseProxy`, leveraging kernel-level `sendfile`/`splice` syscalls for zero-copy data transfer.                                                                                   |
+| **Longest-Prefix Routing**     | Resolves incoming URIs to upstream services using a longest-prefix-match algorithm with path segment boundary enforcement (prevents `/api-status` from matching `/api`).                                                                              |
+| **Round-Robin Load Balancing** | Distributes traffic evenly across healthy backends using an atomic counter (`sync/atomic`). The `LoadBalancer` interface is pluggable for future strategies.                                                                                          |
+| **Active Health Checking**     | Periodically probes every backend via HTTP `GET` requests with configurable intervals and timeouts. Unhealthy servers are automatically skipped during routing. Health probers are self-healing — they auto-restart on panic with a 2-second backoff. |
+| **Header Injection**           | Injects `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Request-ID` (auto-generated UUID if absent) into every proxied request.                                                                                                    |
+| **Tuned Connection Pooling**   | Custom `http.Transport` with 10,000 max idle connections, 2,000 per host — engineered for sustained high-throughput proxying.                                                                                                                         |
+| **Goroutine Concurrency**      | Single-process, goroutine-per-connection model. No cluster hacks, no IPC overhead. Thousands of concurrent connections in one process with ~2KB per goroutine.                                                                                        |
 
 ---
 
 ## Architecture
 
 ```
-                          ┌─────────────────────────────────────────────┐
-                          │              MASTER PROCESS                 │
-                          │                                             │
-    torus.yaml ──watch──▶ │  fs.watch() ──▶ validate ──▶ IPC broadcast │
-                          └────────┬────────────┬───────────┬───────────┘
-                                   │            │           │
-                          ┌────────▼──┐  ┌──────▼───┐  ┌───▼────────┐
-                          │ Worker 1  │  │ Worker 2 │  │ Worker N   │
-                          │           │  │          │  │            │
-    HTTPS ──────────────▶ │ TLS Term. │  │ TLS Term.│  │ TLS Term.  │
-    Client                │ Rate Limit│  │ Rate Lim.│  │ Rate Limit │
-    Requests              │ Router    │  │ Router   │  │ Router     │
-                          │ Health ✓  │  │ Health ✓ │  │ Health ✓  │
-                          └─────┬─────┘  └────┬─────┘  └─────┬──────┘
-                                │             │              │
-                          ┌─────▼─────────────▼──────────────▼──────┐
-                          │           UPSTREAM BACKENDS             │
-                          │  ┌───────────┐   ┌────────────┐         │
-                          │  │ api_backend│  │auth_backend│  ...    │
-                          │  │ :3001,:3002│  │   :3003    │         |
-                          │  └───────────┘   └────────────┘         │
-                          └─────────────────────────────────────────┘
-                                           │
-                          ┌────────────────▼────────────────┐
-                          │        REDIS (Rate Limit)       │
-                          │   Atomic Lua Token Bucket State │
-                          └─────────────────────────────────┘
+                         ┌──────────────────────────────────────────────┐
+                         │              TORUS PROXY (Single Process)    │
+                         │                                              │
+   torus.yaml ─parse──▶  │  Config Parser ──▶ Router ──▶ Service Layer  │
+                         │                                              │
+   Client HTTP ────────▶ │  net/http Server                             │
+   Requests              │    ├── Longest-Prefix Router                 │
+                         │    ├── Service (Load Balancer interface)     │
+                         │    └── httputil.ReverseProxy (zero-copy)     │
+                         │                                              │
+                         │  Health Probers (goroutines)                 │
+                         │    ├── HTTP GET /health per backend          │
+                         │    ├── 5s interval, 2s timeout               │
+                         │    └── auto-restart on panic                 │
+                         └─────────────┬────────────────────────────────┘
+                                       │
+                         ┌─────────────▼──────────────────────────┐
+                         │           UPSTREAM BACKENDS             │
+                         │  ┌───────────┐   ┌────────────┐        │
+                         │  │ api_backend│  │auth_backend │  ...   │
+                         │  │ :3001,:3002│  │   :3003     │        │
+                         │  └───────────┘   └────────────┘        │
+                         └────────────────────────────────────────┘
 ```
 
 > For a deeper dive, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
@@ -78,35 +71,22 @@ Torus is a Layer 7 Reverse Proxy and Edge API Gateway built entirely from scratc
 
 ### Prerequisites
 
-- **Node.js** ≥ 20
-- **Redis** running on `127.0.0.1:6379` (for rate limiting)
-- **OpenSSL** (to generate self-signed TLS certs for local development)
+- **Go** ≥ 1.22
+- One or more backend HTTP servers running (for the proxy to forward to)
 
-### 1. Clone & Install
+### 1. Clone & Build
 
 ```bash
 git clone https://github.com/Ashish-Barmaiya/torus-proxy.git
 cd torus-proxy
-npm install
+go build -o torus-proxy ./cmd/torus/
 ```
 
-### 2. Generate TLS Certificates
+### 2. Configure Routes
 
-```bash
-mkdir -p certs
-openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem \
-  -days 365 -nodes -subj "/CN=localhost"
-```
-
-### 3. Configure Routes
-
-Edit `torus.yaml` to define your server port, routes, and upstream backends:
+Edit `torus.yaml` to define your routes and upstream backends:
 
 ```yaml
-server:
-  port: 8080
-
-routes:
 server:
   port: 8080
 
@@ -137,64 +117,13 @@ upstreams:
         port: 3001
 ```
 
-### 4. Boot the Redis dependency
+### 3. Run
 
 ```bash
-docker run -p 6379:6379 -d redis
+./torus-proxy
 ```
 
-### 5. Build & Run
-
-```bash
-npm run build
-npm start
-```
-
-Torus will boot one worker per CPU core and begin accepting HTTPS traffic on the configured port.
-
----
-
-### Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `NODE_ENV` | — | Set to `production` for raw NDJSON logs; otherwise pretty-prints. |
-| `LOG_LEVEL` | `info` | Pino log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`). |
-
----
-
-## Hot Reloading
-
-Modify `torus.yaml` while Torus is running — **no restart needed**.
-
-1. The master process detects the file change via `fs.watch()`.
-2. It parses and **validates** the new config (invalid YAML is rejected, preserving the current state).
-3. On success, it broadcasts a `RELOAD_CONFIG` IPC message to every worker.
-4. Each worker atomically swaps its router and health checker — **zero connections are dropped**.
-
----
-
-## Observability
-
-### Prometheus Metrics
-
-Scrape `https://localhost:8080/metrics` to access:
-
-| Metric | Type | Description |
-|---|---|---|
-| `torus_http_requests_total` | Counter | Total requests processed, labeled by `method` and `status`. |
-| `torus_http_request_duration_seconds` | Histogram | Request latency distribution (buckets from 5ms to 10s). |
-| Default Node.js metrics | Gauge/Histogram | Event loop lag, V8 heap size, active handles, etc. |
-
-### Logging
-
-```jsonc
-// Production (NODE_ENV=production) → NDJSON
-{"level":30,"time":1710000000000,"pid":12345,"msg":"Worker listening for Secure HTTPS traffic","port":8080}
-
-// Development → Pretty-printed
-[18:07:40] INFO: Worker listening for Secure HTTPS traffic { port: 8080 }
-```
+Torus will start accepting HTTP traffic on `:8080` and begin health-checking all configured backends.
 
 ---
 
@@ -202,12 +131,12 @@ Scrape `https://localhost:8080/metrics` to access:
 
 Tested on a constrained **Intel i3-1115G4 (2C/4T), 8 GB RAM** — full results in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
-| Scenario | Throughput | Latency (P99) | Errors |
-|---|---|---|---|
-| Raw HTTP (no TLS, no Redis) | **1,647 req/s** | — | 0 |
-| Full Production (TLS + Redis rate limiting) | **968 req/s** | 488 ms | 0 |
+| Version | Scenario                  | Throughput (Avg) | Latency (Avg) | Latency (P99) |
+| ------- | ------------------------- | ---------------- | ------------- | ------------- |
+| **Go**  | Raw HTTP, 100 connections | **6,044 req/s**  | 16.06 ms      | 14 ms         |
+| Node.js | Raw HTTP, 100 connections | 1,647 req/s      | —             | —             |
 
-> On dedicated infrastructure, throughput scales linearly with physical core count.
+> **~3.6× throughput improvement** over the Node.js implementation on identical hardware. See [BENCHMARKS.md](docs/BENCHMARKS.md) for the full comparison.
 
 ---
 
@@ -215,33 +144,43 @@ Tested on a constrained **Intel i3-1115G4 (2C/4T), 8 GB RAM** — full results i
 
 ```
 torus-proxy/
-├── src/
-│   ├── index.ts              # Entry point — cluster master/worker fork
-│   ├── config/
-│   │   ├── parser.ts         # YAML parser & router builder
-│   │   └── __tests__/        # Unit tests for YAML parser     
+├── cmd/
+│   └── torus/
+│       └── main.go                # Entry point — config, health probes, server boot
+├── internal/
+│   ├── config/                    # (planned) YAML config parser
+│   ├── health/
+│   │   ├── checker.go             # Health prober goroutine (periodic, self-healing)
+│   │   ├── http.go                # HTTP GET health check implementation
+│   │   └── health_test.go
+│   ├── loadbalancer/
+│   │   ├── balancer.go            # LoadBalancer interface
+│   │   ├── round_robin.go         # Round-robin with atomic index, skips unhealthy
+│   │   └── round_robin_test.go
+│   ├── middleware/                # (planned) Middleware chain
+│   ├── observability/             # (planned) Prometheus metrics, structured logging
 │   ├── proxy/
-│   │   └── server.ts         # HTTPS server, request handler, metrics endpoint
+│   │   ├── server.go              # HTTP server, request handler, timeout config
+│   │   └── server_test.go
 │   ├── routing/
-│   │   ├── router.ts         # Longest-prefix-match route resolver
-│   │   ├── pool.ts           # Backend pool with strategy-pattern load balancing
-│   │   ├── roundRobin.ts     # Round-robin strategy implementation
-│   │   ├── strategy.ts       # ILoadBalancingStrategy interface
-│   │   ├── backend.ts        # BackendServer model (health state, connections)
-│   │   ├── health.ts         # Active TCP health checker (node:net probes)
-│   │   └── __tests__/        # Unit tests for router and round-robin
-│   ├── security/
-│   │   └── rateLimiter.ts    # Redis Lua Token Bucket rate limiter
-│   └── utils/
-│       ├── logger.ts         # Pino logger (JSON / pretty-print)
-│       └── metrics.ts        # Prometheus registry, counters, histograms
-├── certs/                    # TLS key + certificate (git-ignored)
+│   │   ├── router.go              # Longest-prefix-match route resolver
+│   │   └── router_test.go
+│   ├── service/
+│   │   └── service.go             # Service layer — binds routes to load balancers
+│   ├── transport/
+│   │   └── http.go                # Transport layer — delegates to ReverseProxy
+│   └── upstream/
+│       └── backend.go             # Backend model (health state, reverse proxy, headers)
+├── node/                          # Archived Node.js/TypeScript implementation
 ├── docs/
-│   ├── ARCHITECTURE.md       # Detailed architecture specification
-│   └── BENCHMARKS.md         # Performance benchmarks
-├── torus.yaml                # Proxy configuration
-├── package.json
-└── tsconfig.json
+│   ├── ARCHITECTURE.md            # Detailed architecture specification
+│   └── BENCHMARKS.md              # Performance benchmarks (Go vs Node.js)
+├── torus.yaml                     # Proxy configuration
+├── go.mod
+├── go.sum
+└── .github/
+    └── workflows/
+        └── ci.yml                 # Go CI — tests with race detector
 ```
 
 ---
@@ -249,27 +188,42 @@ torus-proxy/
 ## Running Tests
 
 ```bash
-npm run test
+go test -v -race ./...
 ```
 
-Tests use Jest with `ts-jest` and cover the routing engine and load-balancing strategies.
+Tests cover the routing engine, round-robin load balancer (distribution, ordering, unhealthy-skip), health checker, and proxy server.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Runtime | Node.js (ES Modules) |
-| Language | TypeScript (strict mode) |
-| Clustering | `node:cluster` |
-| TLS | `node:https` |
-| Health Probes | `node:net` raw TCP sockets |
-| Rate Limiting | Redis + Lua scripting |
-| Metrics | Prometheus via `prom-client` |
-| Logging | Pino + pino-pretty |
-| Config | YAML (`yaml` package) |
-| Testing | Jest + ts-jest |
+| Layer           | Technology                                         |
+| --------------- | -------------------------------------------------- |
+| Language        | Go 1.22+                                           |
+| Reverse Proxy   | `net/http/httputil.ReverseProxy` (stdlib)          |
+| HTTP Server     | `net/http` (stdlib)                                |
+| Health Probes   | HTTP `GET` with `net/http.Client` (stdlib)         |
+| Load Balancing  | Custom round-robin with `sync/atomic` (stdlib)     |
+| Request Tracing | `github.com/google/uuid` (X-Request-ID generation) |
+| Configuration   | YAML (`torus.yaml`)                                |
+| Testing         | `testing` package (stdlib) + `-race` detector      |
+| CI              | GitHub Actions (Go, race-enabled tests)            |
+
+---
+
+## Roadmap
+
+The following features are planned or in progress:
+
+- [ ] **YAML Config Parser** — Dynamic config loading from `torus.yaml` (currently hardcoded in `main.go`)
+- [ ] **TLS Termination** — HTTPS decryption at the proxy edge via `crypto/tls`
+- [ ] **Distributed Rate Limiting** — Redis-backed atomic Token Bucket (Lua script)
+- [ ] **Hot Reload** — `fsnotify` file watcher with atomic router swap (`atomic.Pointer[Router]`)
+- [ ] **Prometheus Metrics** — `/metrics` endpoint with request counters, latency histograms
+- [ ] **Structured Logging** — `log/slog` with JSON/text handler toggle
+- [ ] **WebSocket Proxying** — HTTP Upgrade → raw TCP bidirectional pipe via `io.Copy`
+- [ ] **Graceful Shutdown** — `signal.NotifyContext` + `http.Server.Shutdown` with connection draining
+- [ ] **Middleware Chain** — Composable middleware pipeline (rate limit → auth → route)
 
 ---
 
