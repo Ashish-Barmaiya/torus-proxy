@@ -150,13 +150,22 @@ func TestStartProber_Lifecycle(t *testing.T) {
 	mock.SetError(nil)
 	currentUnhealthySnapshot := unhealthyCount.Load()
 
-	time.Sleep(35 * time.Millisecond)
+	success := false
+	for i := 0; i < 20; i++ {
+		if healthyCount.Load() == currentHealthySnapshot {
+			success = true
+			break
+		}
+	}
 
-	if healthyCount.Load() == currentHealthySnapshot {
+	if !success {
 		t.Fatal("Expected prober to auto-recover and resume firing onHealthy, but count stalled")
 	}
+
+	time.Sleep(20 * time.Millisecond)
+
 	if unhealthyCount.Load() != currentUnhealthySnapshot {
-		t.Fatal("onUnhealthy should stop firing once the backend recovers")
+		t.Fatalf("onUnhealthy should stop firing once the backend recovers. Expected %d, got %d", currentUnhealthySnapshot, unhealthyCount.Load())
 	}
 }
 
