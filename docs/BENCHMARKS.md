@@ -144,3 +144,13 @@ The following benchmarks were captured with the original Node.js/TypeScript impl
 - **Errors:** 0 (100% HTTP 200 Success Rate)
 
 **Conclusion:** Security and distributed state have a mathematical cost. Adding TLS decryption and Redis atomicity resulted in a ~41% reduction in raw throughput.
+
+---
+
+### How to Reproduce These Results
+
+To validate these metrics locally, execute the following commands across isolated shell environments:
+
+1. **Target Mocks:** `go run mock_backend.go`
+2. **Proxy Core:** `go run ./cmd/torus`
+3. **Execution Hammer:** `wrk -t2 -c100 -d10s http://localhost:8080/api`
