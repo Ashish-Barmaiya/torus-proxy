@@ -1,18 +1,21 @@
 package proxy
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
+	"torus-proxy/internal/middleware"
 	"torus-proxy/internal/routing"
 	"torus-proxy/internal/transport"
 )
 
 type Server struct {
 	router *routing.Router
+	logger *slog.Logger
 }
 
-func NewServer(router *routing.Router) *Server {
-	return &Server{router: router}
+func NewServer(router *routing.Router, logger *slog.Logger) *Server {
+	return &Server{router: router, logger: logger}
 }
 
 // The HTTP Handler function
@@ -37,17 +40,20 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Handler() http.Handler {
-	return http.HandlerFunc(s.httpHandler)
+	var h http.Handler = http.HandlerFunc(s.httpHandler)
+	if s.logger != nil {
+		h = middleware.LoggingMiddleware(s.logger)(h)
+	}
+	return h
 }
 
 func (s *Server) Start(addr string) error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.httpHandler)
+	mux.Handle("/", s.Handler())
 
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: mux,
-
+		Addr:         addr,
+		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,

@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,7 +13,10 @@ import (
 	"torus-proxy/internal/upstream"
 )
 
+var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
 func setupProxy(t *testing.T, targetURLs []string) *Server {
+
 	var backends []*upstream.Backend
 	for _, url := range targetURLs {
 		b, err := upstream.NewBackend(url)
@@ -25,7 +29,7 @@ func setupProxy(t *testing.T, targetURLs []string) *Server {
 	svc := service.NewService(backends)
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
-	return NewServer(router)
+	return NewServer(router, testLogger)
 }
 
 func TestProxyFlow_Basic(t *testing.T) {

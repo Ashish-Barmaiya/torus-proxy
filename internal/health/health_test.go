@@ -3,6 +3,8 @@ package health_test
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -12,6 +14,8 @@ import (
 
 	"torus-proxy/internal/health"
 )
+
+var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 func TestHTTPChecker_Healthy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -124,6 +128,7 @@ func TestStartProber_Lifecycle(t *testing.T) {
 		2*time.Millisecond,
 		func() { healthyCount.Add(1) },
 		func() { unhealthyCount.Add(1) },
+		testLogger,
 	)
 
 	// Verify Success
@@ -186,6 +191,7 @@ func TestStartProber_PrimaryPanicRecovery(t *testing.T) {
 		2*time.Millisecond,
 		func() {},
 		func() { unhealthyCount.Add(1) },
+		testLogger,
 	)
 
 	time.Sleep(50 * time.Millisecond)
@@ -218,6 +224,7 @@ func TestStartProber_SecondaryFaultIsolation(t *testing.T) {
 		2*time.Millisecond,
 		func() {},
 		func() {},
+		testLogger,
 	)
 
 	time.Sleep(50 * time.Millisecond)

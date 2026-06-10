@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 	"torus-proxy/internal/health"
 	"torus-proxy/internal/proxy"
@@ -13,15 +14,22 @@ import (
 )
 
 func main() {
+	// Structured JSON logger
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
 	// Ceate backends
 	b1, err := upstream.NewBackend("http://localhost:3001")
 	if err != nil {
-		log.Fatalf("failed to create backend 1: %v", err)
+		logger.Error("failed to create backend 1", "error", err)
+		os.Exit(1)
 	}
 
 	b2, err := upstream.NewBackend("http://localhost:3002")
 	if err != nil {
-		log.Fatalf("failed to create backend 2: %v", err)
+		logger.Error("failed to create backend 2", "error", err)
+		os.Exit(1)
 	}
 
 	backends := []*upstream.Backend{b1, b2}
@@ -49,6 +57,7 @@ func main() {
 			2*time.Second, // per-check timeout
 			func() { backend.SetHealthy(true) },
 			func() { backend.SetHealthy(false) },
+			logger,
 		)
 	}
 
@@ -60,8 +69,10 @@ func main() {
 	router.AddRoute("/api", svc)
 
 	// Start proxy
-	server := proxy.NewServer(router)
+	server := proxy.NewServer(router, logger)
 
-	log.Println("Proxy is running on :8080")
-	log.Fatal(server.Start(":8080"))
+	logger.Info("Torus is running", "addr", "8080")
+	if err := server.Start(":8080"); err != nil {
+		logger.Error("server stopped", "error", err)
+	}
 }

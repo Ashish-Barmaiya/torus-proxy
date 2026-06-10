@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"log"
+	"log/slog"
 	"time"
 )
 
@@ -18,6 +19,7 @@ func StartProber(
 	timeout time.Duration,
 	onHealthy func(),
 	onUnhealthy func(),
+	logger *slog.Logger,
 ) {
 	go func() {
 		// Primary recovery
@@ -33,7 +35,7 @@ func StartProber(
 
 				log.Printf("[HEALTH CRASH ALERT] Worker panicked: %v. Restarting worker...", r)
 				time.Sleep(2 * time.Second)
-				StartProber(ctx, checker, interval, timeout, onHealthy, onUnhealthy) // restrat the prober
+				StartProber(ctx, checker, interval, timeout, onHealthy, onUnhealthy, logger) // restrat the prober
 			}
 		}()
 
@@ -49,8 +51,10 @@ func StartProber(
 
 				if err == nil {
 					onHealthy()
+					logger.Debug("health check passed", "checker", checker)
 				} else {
 					onUnhealthy()
+					logger.Warn("health check failed", "checker", checker, "error", err)
 				}
 			case <-ctx.Done():
 				return
