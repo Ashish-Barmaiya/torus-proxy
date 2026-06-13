@@ -1,3 +1,2 @@
-node_directory_name/** linguist-vendored
-node_directory_name/** linguist-generated
-node_directory_name/** linguist-documentation
+node/** linguist-vendored
+node/** linguist-documentation
