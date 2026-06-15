@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"torus-proxy/internal/config"
 	"torus-proxy/internal/health"
 	"torus-proxy/internal/proxy"
 	"torus-proxy/internal/routing"
@@ -19,20 +20,12 @@ func main() {
 		Level: slog.LevelInfo,
 	}))
 
-	// Ceate backends
-	b1, err := upstream.NewBackend("http://localhost:3001")
+	// Load configuration
+	cfg, err := config.LoadConfig("torus.yaml")
 	if err != nil {
-		logger.Error("failed to create backend 1", "error", err)
+		logger.Error("failed to load configuration", "error", err)
 		os.Exit(1)
 	}
-
-	b2, err := upstream.NewBackend("http://localhost:3002")
-	if err != nil {
-		logger.Error("failed to create backend 2", "error", err)
-		os.Exit(1)
-	}
-
-	backends := []*upstream.Backend{b1, b2}
 
 	// Health check
 	healthClient := &http.Client{
@@ -42,31 +35,40 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background()) // root context for entire proxy
 	defer cancel()
 
-	for _, b := range backends {
-		checker := &health.HTTPChecker{
-			URL:    b.URL,
-			Client: healthClient,
-			Path:   "/health",
+	router := routing.NewRouter()
+
+	for _, rConfig := range cfg.Routes {
+		var backends []*upstream.Backend
+
+		for _, upURL := range rConfig.Upstreams {
+			b, err := upstream.NewBackend(upURL)
+			if err != nil {
+				logger.Error("failed to create backend", "url", upURL, "error", err)
+				os.Exit(1)
+			}
+			backends = append(backends, b)
+
+			checker := &health.HTTPChecker{
+				URL:    b.URL,
+				Client: healthClient,
+				Path:   cfg.HealthCheck.Path,
+			}
+
+			backend := b
+			health.StartProber(
+				ctx,
+				checker,
+				cfg.HealthCheck.Interval(),
+				cfg.HealthCheck.Timeout(),
+				func() { backend.SetHealthy(true) },
+				func() { backend.SetHealthy(false) },
+				logger,
+			)
 		}
 
-		backend := b
-		health.StartProber(
-			ctx,
-			checker,
-			5*time.Second, // interval between every check
-			2*time.Second, // per-check timeout
-			func() { backend.SetHealthy(true) },
-			func() { backend.SetHealthy(false) },
-			logger,
-		)
+		svc := service.NewService(backends)
+		router.AddRoute(rConfig.Path, svc)
 	}
-
-	// Create service
-	svc := service.NewService(backends)
-
-	// Create router
-	router := routing.NewRouter()
-	router.AddRoute("/api", svc)
 
 	// Start proxy
 	server := proxy.NewServer(router, logger)
