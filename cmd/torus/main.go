@@ -73,8 +73,8 @@ func main() {
 	// Start proxy
 	server := proxy.NewServer(router, logger)
 
-	logger.Info("Torus is running", "addr", "8080")
-	if err := server.Start(":8080"); err != nil {
+	logger.Info("Torus is running", "addr", cfg.Server.Addr)
+	if err := server.Start(cfg.Server.Addr); err != nil {
 		logger.Error("server stopped", "error", err)
 	}
 }

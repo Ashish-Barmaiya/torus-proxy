@@ -73,9 +73,9 @@ func NewBackend(targetUrl string) (*Backend, error) {
 
 		// X-Forwarder-Proto
 		if pr.In.TLS != nil {
-			pr.Out.Header.Set("X-Forwarder-Proto", "https")
+			pr.Out.Header.Set("X-Forwarded-Proto", "https")
 		} else {
-			pr.Out.Header.Set("X-Forwarder-Proto", "http")
+			pr.Out.Header.Set("X-Forwarded-Proto", "http")
 		}
 
 		// X-Forwarded-Host

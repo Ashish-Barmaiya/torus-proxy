@@ -6,7 +6,7 @@
 
 _High-throughput traffic routing, active health checking, round-robin load balancing — engineered with Go's standard library and zero-copy I/O._
 
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -15,7 +15,7 @@ _High-throughput traffic routing, active health checking, round-robin load balan
 
 ## The Objective
 
-Torus is a Layer 7 Reverse Proxy and Edge API Gateway rewritten from the ground up in Go. Originally prototyped in Node.js/TypeScript, the project was migrated to Go to leverage goroutine-based concurrency, `httputil.ReverseProxy` for zero-copy stream piping, and the Go standard library's native networking stack. Torus demonstrates how production-grade traffic routing, active health probing, and load balancing operate at the systems level — without heavyweight frameworks or dependency trees.
+Torus is a Layer 7 Reverse Proxy and Edge API Gateway written from the ground up in Go. Originally prototyped in Node.js/TypeScript, the project was migrated to Go to leverage goroutine-based concurrency, `httputil.ReverseProxy` for zero-copy stream piping, and the Go standard library's native networking stack. Torus demonstrates how production-grade traffic routing, active health probing, and load balancing operate at the systems level — without heavyweight frameworks or dependency trees.
 
 > The original Node.js/TypeScript implementation is preserved in the [`node/`](node/) directory for reference and benchmark comparison.
 
@@ -69,9 +69,8 @@ Torus is a Layer 7 Reverse Proxy and Edge API Gateway rewritten from the ground 
 
 ## Quick Start
 
-### Prerequisites
-
-- **Go** ≥ 1.22
+-### Prerequisites
+- **Go** ≥ 1.26
 - One or more backend HTTP servers running (for the proxy to forward to)
 
 ### 1. Clone & Build
@@ -84,37 +83,22 @@ go build -o torus-proxy ./cmd/torus/
 
 ### 2. Configure Routes
 
-Edit `torus.yaml` to define your routes and upstream backends:
+Edit `torus.yaml` to define your routes and upstream backends. The repository contains a minimal example `torus.yaml` used by the binary:
 
 ```yaml
 server:
-  port: 8080
+  addr: ":8080"
+
+health:
+  interval_ms: 5000
+  timeout_ms: 2000
+  path: /health
 
 routes:
   - path: /api
-    upstream: api_backend
-  - path: /auth
-    upstream: auth_backend
-  - path: /
-    upstream: default_backend
-
-upstreams:
-  - name: api_backend
-    servers:
-      - host: 127.0.0.1
-        port: 3001
-      - host: 127.0.0.1
-        port: 3002
-
-  - name: auth_backend
-    servers:
-      - host: 127.0.0.1
-        port: 3003
-
-  - name: default_backend
-    servers:
-      - host: 127.0.0.1
-        port: 3001
+    upstream:
+      - "http://localhost:3001"
+      - "http://localhost:3002"
 ```
 
 ### 3. Run
@@ -148,7 +132,7 @@ torus-proxy/
 │   └── torus/
 │       └── main.go                # Entry point — config, health probes, server boot
 ├── internal/
-│   ├── config/                    # (planned) YAML config parser
+│   ├── config/                    # YAML config parser
 │   ├── health/
 │   │   ├── checker.go             # Health prober goroutine (periodic, self-healing)
 │   │   ├── http.go                # HTTP GET health check implementation
@@ -200,7 +184,7 @@ Tests cover the routing engine, round-robin load balancer (distribution, orderin
 
 | Layer           | Technology                                         |
 | --------------- | -------------------------------------------------- |
-| Language        | Go 1.22+                                           |
+| Language        | Go 1.26+                                           |
 | Reverse Proxy   | `net/http/httputil.ReverseProxy` (stdlib)          |
 | HTTP Server     | `net/http` (stdlib)                                |
 | Health Probes   | HTTP `GET` with `net/http.Client` (stdlib)         |
@@ -216,7 +200,6 @@ Tests cover the routing engine, round-robin load balancer (distribution, orderin
 
 The following features are planned or in progress:
 
-- [ ] **YAML Config Parser** — Dynamic config loading from `torus.yaml` (currently hardcoded in `main.go`)
 - [ ] **TLS Termination** — HTTPS decryption at the proxy edge via `crypto/tls`
 - [ ] **Distributed Rate Limiting** — Redis-backed atomic Token Bucket (Lua script)
 - [ ] **Hot Reload** — `fsnotify` file watcher with atomic router swap (`atomic.Pointer[Router]`)

@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  addr: ":8080"
 
 health:
   interval_ms: 5000
