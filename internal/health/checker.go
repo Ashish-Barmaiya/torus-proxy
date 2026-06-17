@@ -9,6 +9,7 @@ import (
 
 type Checker interface {
 	Check(ctx context.Context) error
+	Target() string
 }
 
 // Prober runs a checker periodically
@@ -54,7 +55,7 @@ func StartProber(
 					logger.Debug("health check passed", "checker", checker)
 				} else {
 					onUnhealthy()
-					logger.Warn("health check failed", "checker", checker, "error", err)
+					logger.Warn("health check failed", "checker", checker.Target(), "error", err)
 				}
 			case <-ctx.Done():
 				return

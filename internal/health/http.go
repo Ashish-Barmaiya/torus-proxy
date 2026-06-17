@@ -29,3 +29,7 @@ func (h *HTTPChecker) Check(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (h *HTTPChecker) Target() string {
+	return h.URL
+}
