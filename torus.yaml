@@ -1,29 +1,15 @@
 server:
   port: 8080
 
+health:
+  interval_ms: 5000
+  timeout_ms: 2000
+  path: /health
+
 routes:
   - path: /api
-    upstream: api_backend
-  - path: /auth
-    upstream: auth_backend
-  - path: /
-    upstream: default_backend
+    upstream: 
+    - "http://localhost:3001"
+    - "http://localhost:3002"
 
-upstreams:
-  - name: api_backend
-    servers:
-      - host: 127.0.0.1
-        port: 3001
-      - host: 127.0.0.1
-        port: 3002
-        
-  - name: auth_backend
-    servers:
-      - host: 127.0.0.1
-        port: 3003
-        
-  - name: default_backend
-    servers:
-      - host: 127.0.0.1
-        port: 3001 # Reusing ports for testing
         

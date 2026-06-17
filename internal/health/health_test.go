@@ -111,6 +111,10 @@ func (m *MockChecker) String() string {
 	return "MockChecker"
 }
 
+func (m *MockChecker) Target() string {
+	return "MockChecker"
+}
+
 // The Lifecycle Test (Success -> Failure -> Auto-Recovery)
 func TestStartProber_Lifecycle(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
