@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 	"torus-proxy/internal/config"
 	"torus-proxy/internal/health"
@@ -73,8 +75,32 @@ func main() {
 	// Start proxy
 	server := proxy.NewServer(router, logger)
 
-	logger.Info("Torus is running", "addr", cfg.Server.Addr)
-	if err := server.Start(cfg.Server.Addr); err != nil {
-		logger.Error("server stopped", "error", err)
+	go func() {
+		logger.Info("Torus is running", "addr", cfg.Server.Addr)
+		if err := server.Start(cfg.Server.Addr); err != nil {
+			logger.Error("server stopped", "error", err)
+			cancel()
+			os.Exit(1)
+		}
+	}()
+
+	// This ctx is cancelled on SIGINT or SIGTERM
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	<-signalCtx.Done() // Wait for shutdown signal
+	logger.Info("received shutdown signal", "signal", signalCtx.Err())
+
+	// Cancel root ctx
+	cancel()
+
+	// Shutdown server with timeout
+	shutdownTimeout := 25 * time.Second
+	if err := server.Shutdown(shutdownTimeout); err != nil {
+		logger.Error("failed to shutdown server gracefully", "error", err)
+		os.Exit(1)
 	}
+
+	logger.Info("Server shutdown complete")
+	os.Exit(0)
 }
