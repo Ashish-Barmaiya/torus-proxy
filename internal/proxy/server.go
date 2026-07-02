@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"log/slog"
 	"net"
 	"net/http"
@@ -19,10 +20,15 @@ type Server struct {
 	ready       atomic.Bool
 	baseCtx     context.Context
 	forceCancel context.CancelFunc
+	tlsConfig   *tls.Config
 }
 
-func NewServer(router *routing.Router, logger *slog.Logger) *Server {
-	return &Server{router: router, logger: logger}
+func NewServer(router *routing.Router, logger *slog.Logger, tlsConfig *tls.Config) *Server {
+	return &Server{
+		router:    router,
+		logger:    logger,
+		tlsConfig: tlsConfig,
+	}
 }
 
 // The HTTP Handler function
@@ -62,10 +68,10 @@ func (s *Server) Start(addr string) error {
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		if s.ready.Load() {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("ready"))
+			_, _ = w.Write([]byte("ready"))
 		} else {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("not ready"))
+			_, _ = w.Write([]byte("not ready"))
 		}
 	})
 
@@ -83,6 +89,7 @@ func (s *Server) Start(addr string) error {
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
+		TLSConfig:    s.tlsConfig,
 	}
 
 	s.ready.Store(true)

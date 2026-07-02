@@ -16,7 +16,6 @@ import (
 var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 func setupProxy(t *testing.T, targetURLs []string) *Server {
-
 	var backends []*upstream.Backend
 	for _, url := range targetURLs {
 		b, err := upstream.NewBackend(url)
@@ -29,12 +28,12 @@ func setupProxy(t *testing.T, targetURLs []string) *Server {
 	svc := service.NewService(backends)
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
-	return NewServer(router, testLogger)
+	return NewServer(router, testLogger, nil)
 }
 
 func TestProxyFlow_Basic(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("backend_response"))
+		_, _ = w.Write([]byte("backend_response"))
 	}))
 	defer backend.Close()
 
@@ -62,7 +61,7 @@ func TestProxyFlow_HeadersAndTracing(t *testing.T) {
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedTrackingID = r.Header.Get("X-Request-ID")
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}))
 
 	defer backend.Close()
@@ -97,12 +96,12 @@ func TestProxyFlow_NotFound(t *testing.T) {
 
 func TestProxyFlow_LoadBalancing(t *testing.T) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("S1"))
+		_, _ = w.Write([]byte("S1"))
 	}))
 	defer backend1.Close()
 
 	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("S2"))
+		_, _ = w.Write([]byte("S2"))
 	}))
 	defer backend2.Close()
 
@@ -127,7 +126,7 @@ func TestProxyFlow_LoadBalancing(t *testing.T) {
 
 func TestProxyFlow_Concurrency(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}))
 	defer backend.Close()
 
@@ -156,7 +155,7 @@ func TestProxyFlow_Concurrency(t *testing.T) {
 
 func TestProxyFlow_BackendFailure(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}))
 
 	proxy := setupProxy(t, []string{backend.URL})
