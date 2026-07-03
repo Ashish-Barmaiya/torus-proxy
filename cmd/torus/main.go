@@ -79,6 +79,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	logger.Info("TLS config loaded", "tlsCfg", tlsCfg != nil)
+
 	// Start proxy
 	server := proxy.NewServer(router, logger, tlsCfg)
 

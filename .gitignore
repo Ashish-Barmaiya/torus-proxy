@@ -29,3 +29,7 @@ torus-linux-arm64
 
 # Files for manual testing
 mock_backend.go
+
+# TLS Cert and Key files
+cert.pem
+key.pem

@@ -89,13 +89,23 @@ func (s *Server) Start(addr string) error {
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
-		TLSConfig:    s.tlsConfig,
+	}
+
+	// Create listener
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	if s.tlsConfig != nil {
+		ln = tls.NewListener(ln, s.tlsConfig)
 	}
 
 	s.ready.Store(true)
+	s.logger.Info("Torus listening", "addr", addr, "tls", s.tlsConfig != nil)
 
-	s.logger.Info("Torus listening", "addr", addr)
-	if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	// Start serving
+	if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 		s.logger.Error("server stopped", "error", err)
 		return err
 	}
