@@ -72,8 +72,17 @@ func main() {
 		router.AddRoute(rConfig.Path, svc)
 	}
 
+	// Load TLS configuration if provided
+	tlsCfg, err := cfg.Tls.LoadTlsConfig()
+	if err != nil {
+		logger.Error("failed to load TLS config", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("TLS config loaded", "tlsCfg", tlsCfg != nil)
+
 	// Start proxy
-	server := proxy.NewServer(router, logger)
+	server := proxy.NewServer(router, logger, tlsCfg)
 
 	go func() {
 		logger.Info("Torus is running", "addr", cfg.Server.Addr)

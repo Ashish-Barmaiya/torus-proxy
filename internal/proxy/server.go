@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"log/slog"
 	"net"
 	"net/http"
@@ -19,10 +20,15 @@ type Server struct {
 	ready       atomic.Bool
 	baseCtx     context.Context
 	forceCancel context.CancelFunc
+	tlsConfig   *tls.Config
 }
 
-func NewServer(router *routing.Router, logger *slog.Logger) *Server {
-	return &Server{router: router, logger: logger}
+func NewServer(router *routing.Router, logger *slog.Logger, tlsConfig *tls.Config) *Server {
+	return &Server{
+		router:    router,
+		logger:    logger,
+		tlsConfig: tlsConfig,
+	}
 }
 
 // The HTTP Handler function
@@ -62,10 +68,10 @@ func (s *Server) Start(addr string) error {
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		if s.ready.Load() {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("ready"))
+			_, _ = w.Write([]byte("ready"))
 		} else {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("not ready"))
+			_, _ = w.Write([]byte("not ready"))
 		}
 	})
 
@@ -85,10 +91,21 @@ func (s *Server) Start(addr string) error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	s.ready.Store(true)
+	// Create listener
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
 
-	s.logger.Info("Torus listening", "addr", addr)
-	if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if s.tlsConfig != nil {
+		ln = tls.NewListener(ln, s.tlsConfig)
+	}
+
+	s.ready.Store(true)
+	s.logger.Info("Torus listening", "addr", addr, "tls", s.tlsConfig != nil)
+
+	// Start serving
+	if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 		s.logger.Error("server stopped", "error", err)
 		return err
 	}
