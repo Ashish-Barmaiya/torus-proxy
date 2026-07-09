@@ -1,0 +1,39 @@
+id:
+version:
+title:
+description:
+
+benchmark:
+  tool:
+    - wrk
+    - wrk2
+  protocol:
+  url:
+
+workload:
+  threads:
+  connections:
+  duration:
+  warmup:
+  iterations:
+
+request:
+  method:
+  payload:
+
+environment:
+  hardware_profile:
+  environment_profile:
+  software_profile:
+  methodology_version:
+
+monitoring:
+  pidstat: true
+  vmstat: true
+  ss: true
+  pprof: false
+  perf: false
+
+output:
+  dataset:
+  report:
