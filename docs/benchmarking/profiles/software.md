@@ -63,7 +63,7 @@ x86_64
 
 Kernel
 
-(Output of `uname -r`)
+7.0.0-27-generic
 
 ---
 

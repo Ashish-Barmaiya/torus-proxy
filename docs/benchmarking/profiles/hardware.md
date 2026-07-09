@@ -324,7 +324,7 @@ System Default
 
 Type
 
-SSD
+HDD
 
 Filesystem
 
