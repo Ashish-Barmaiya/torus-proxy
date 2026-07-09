@@ -2,9 +2,9 @@
 
 # Torus Proxy
 
-A Go-based Layer 7 reverse proxy and edge API gateway.
+**A Layer 7 Reverse Proxy & Edge API Gateway built in Go.**
 
-Torus routes HTTP traffic to upstream services, performs health-aware load balancing, and can terminate TLS while keeping the implementation dependency-light and focused on the standard library.
+High-performance traffic routing, health-aware load balancing, and production-oriented infrastructure engineering built with Go's standard library.
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -13,9 +13,17 @@ Torus routes HTTP traffic to upstream services, performs health-aware load balan
 
 ---
 
-## What the project does
+## Overview
 
-The current implementation is a working Go proxy with the following capabilities:
+Torus is a Layer 7 reverse proxy and edge API gateway written entirely in Go.
+
+The project began as a Node.js implementation before being rewritten in Go to explore systems programming, networking internals, and high-performance infrastructure software.
+
+The long-term objective is not to compete directly with established production proxies, but to build a reverse proxy as a systems engineering project—implementing, benchmarking, and documenting the techniques used in modern networking infrastructure.
+
+---
+
+## Current Features
 
 - Reverse proxying with Go's standard-library `net/http/httputil.ReverseProxy`
 - Longest-prefix route matching with path-segment boundaries
@@ -23,31 +31,119 @@ The current implementation is a working Go proxy with the following capabilities
 - Active health probing for each backend with configurable interval and timeout
 - Automatic header injection for forwarded client information and request tracing
 - Optional TLS termination from YAML config
-- Structured request logging and a readiness endpoint
-- Graceful shutdown on SIGINT/SIGTERM
+- Structured request logging
+- Readiness endpoint (`/readyz`)
+- Graceful shutdown
+- Comprehensive unit tests
 
-The original Node.js/TypeScript prototype remains in the [node/](node/) directory as a reference and benchmark comparison.
+The original Node.js/TypeScript prototype remains in the [node/](node/) directory as a historical reference.
 
 ---
 
-## Current architecture
+## Engineering Principles
 
-The proxy startup flow is:
+Torus is developed with a strong emphasis on engineering discipline.
 
-1. Load YAML config from `torus.yaml`
-2. Create backends and start health check probers for each upstream
-3. Build the router and bind routes to services
-4. Start the HTTP server and serve requests through the reverse proxy pipeline
+Major architectural decisions are documented through Architecture Decision Records (ADRs), while performance-sensitive changes are validated through reproducible benchmark reports.
 
-The main runtime pieces are:
+This repository intentionally treats documentation, benchmarking, and implementation as equally important parts of the engineering process.
 
-- [cmd/torus/main.go](cmd/torus/main.go) for startup, signal handling, and lifecycle coordination
-- [internal/config/config.go](internal/config/config.go) for configuration parsing
-- [internal/routing/router.go](internal/routing/router.go) for route resolution
-- [internal/service/service.go](internal/service/service.go) and [internal/loadbalancer/round_robin.go](internal/loadbalancer/round_robin.go) for service and balancing logic
-- [internal/proxy/server.go](internal/proxy/server.go) for the HTTP server and request handling
-- [internal/health](internal/health) for health probing
-- [internal/upstream/backend.go](internal/upstream/backend.go) for backend and proxy setup
+---
+
+## Architecture
+
+```
+                Client
+
+                   │
+
+                   ▼
+
+          net/http Server
+
+                   │
+
+                   ▼
+
+          Longest Prefix Router
+
+                   │
+
+                   ▼
+
+              Service Layer
+
+                   │
+
+                   ▼
+
+        Round-Robin Load Balancer
+
+                   │
+
+                   ▼
+
+       httputil.ReverseProxy
+
+                   │
+
+                   ▼
+
+            Upstream Backend
+```
+
+---
+
+## Performance & Benchmarking
+
+Performance engineering is a core part of Torus.
+
+Every significant architectural change is accompanied by a documented benchmark report.
+
+The benchmarking framework includes:
+
+- Standardized benchmark methodology
+- Hardware profiles
+- Environment profiles
+- Software baselines
+- Statistical methodology
+- Historical benchmark reports
+- Raw benchmark datasets
+
+Current reports:
+
+- [**Benchmark-001** — Node.js to Go Performance Evaluation](/docs/benchmarking/reports/Benchmark-001-nodejs-to-go-performance-evaluation.md)
+
+See:
+
+```
+docs/
+└── benchmarking/
+```
+
+---
+
+## Engineering Documentation
+
+Torus maintains engineering documentation beyond source code.
+
+```
+docs/
+
+├── benchmarking/
+│   ├── methodology
+│   ├── benchmark reports
+│   ├── benchmark matrix
+│   ├── statistical methodology
+│   └── benchmark tooling
+│
+└── engineering/
+    ├── architecture
+    ├── design notes
+    └── architecture decision records
+```
+
+Architecture Decision Records (ADRs) document major architectural decisions together with their rationale and consequences.
 
 ---
 
@@ -59,15 +155,21 @@ The main runtime pieces are:
 - One or more backend HTTP services to proxy to
 - Optional: TLS certificate and key files if you want to serve HTTPS
 
-### 1. Build the binary
+### 1. Clone
 
 ```bash
 git clone https://github.com/Ashish-Barmaiya/torus-proxy.git
+
 cd torus-proxy
+```
+
+### 2. Build the binary
+
+```bash
 go build -o torus ./cmd/torus
 ```
 
-### 2. Configure routes
+### 3. Configure
 
 The repository includes a sample configuration in [torus.yaml](torus.yaml). A minimal example looks like this:
 
@@ -96,13 +198,19 @@ tls:
   min_version: "1.2"
 ```
 
-### 3. Run the proxy
+### 4. Run the proxy
 
 ```bash
 ./torus
 ```
 
-The server listens on the configured address and exposes a readiness endpoint at `/readyz`.
+The proxy listens on the configured address and exposes:
+
+```bash
+/readyz
+```
+
+for readiness checks
 
 ---
 
@@ -114,7 +222,13 @@ A request such as:
 curl http://localhost:8080/api/hello
 ```
 
-will be routed to the configured upstreams using the service's round-robin selection while preserving request headers and tracing metadata.
+The request is:
+
+- matched using longest-prefix routing
+- load-balanced using round robin
+- enriched with forwarding headers
+- forwarded to a healthy backend
+- proxied through Go's standard library reverse proxy
 
 ---
 
@@ -126,12 +240,33 @@ Run the test suite with:
 go test ./...
 ```
 
-The repository also includes race-enabled checks in CI and supports:
+Race detector:
 
-- routing behavior
-- backend selection and failover
-- health-check status changes
-- proxy request handling and error responses
+```bash
+go test -race ./...
+```
+
+Current test coverage includes:
+
+- routing
+- load balancing
+- backend health
+- proxy behaviour
+- graceful error handling
+
+---
+
+## Roadmap
+
+Planned work includes:
+
+- Hot configuration reload
+- Prometheus metrics
+- Comparative benchmarking
+- Allocation reduction
+- Allocation-free HTTP parsing
+- Advanced networking optimizations
+- Kernel-assisted networking research
 
 ---
 
@@ -158,6 +293,16 @@ torus-proxy/
 ├── mock_backend.go
 └── go.mod
 ```
+
+---
+
+## [Documentation](/docs/)
+
+| Document | Description |
+|----------|-------------|
+| [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture |
+| [`docs/benchmarking/`](./docs/benchmarking/) | Benchmark reports, methodology, tooling and statistical framework |
+| [`docs/engineering/decision-records/`](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) |
 
 ---
 
