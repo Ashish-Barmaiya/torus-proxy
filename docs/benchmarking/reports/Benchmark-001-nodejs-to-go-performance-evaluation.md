@@ -21,7 +21,7 @@ This benchmark documents the performance impact of rewriting Torus from Node.js 
 | Environment Profile | [E001](../profiles/environment.md) |
 | Software Baseline | [S001](../profiles/software.md) |
 | Benchmark Category | Throughput, Latency, Resource Usage |
-| Related ADR | ADR-001 – Rewrite Torus from Node.js to Go |
+| Related ADR | [ADR-001 – Rewrite Torus from Node.js to Go](../../engineering/decision-records/ADR-001-rewrite-torus-from-nodejs-to-go.md) |
 
 ---
 
