@@ -199,11 +199,11 @@ tool_version() {
             ;;
 
         wrk)
-            wrk --version 2>&1 | head -n 1
+            wrk --version 2>&1
             ;;
 
         vegeta)
-            vegeta version 2>&1 | head -n 1
+            vegeta -version
             ;;
 
         perf)
@@ -226,7 +226,7 @@ tool_version() {
             echo "Unknown"
             ;;
 
-    esac
+    esac | head -n 1
 }
 
 # System Information

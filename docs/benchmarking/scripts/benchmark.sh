@@ -85,24 +85,31 @@ for TOOL in "${TOOLS[@]}"; do
 
                 ;;
 
-            vegeta)
+                        vegeta)
 
                 cat > "${RUN_DIR}/targets.txt" <<EOF
-GET $(benchmark_url "${SCENARIO}") HTTP/1.1
-User-Agent: vegeta
-Accept: */*
-
+GET $(benchmark_url "${SCENARIO}")
 EOF
 
                 vegeta attack \
-                    -targets "${RUN_DIR}/targets.txt" \
-                    -rate "$(benchmark_rate "${SCENARIO}")" \
-                    -duration "$(benchmark_duration "${SCENARIO}")" \
-                    -connections "$(benchmark_connections "${SCENARIO}")" \
-                    > "${RUN_DIR}/vegeta.bin"
+                    -rate="$(benchmark_rate "${SCENARIO}")" \
+                    -duration="$(benchmark_duration "${SCENARIO}")" \
+                    < "${RUN_DIR}/targets.txt" \
+                    > "${RUN_DIR}/results.bin"
 
-                vegeta report -inputs "${RUN_DIR}/vegeta.bin" \
+                vegeta report \
+                    "${RUN_DIR}/results.bin" \
                     > "${RUN_DIR}/vegeta.txt"
+
+                vegeta report \
+                    -type=json \
+                    "${RUN_DIR}/results.bin" \
+                    > "${RUN_DIR}/vegeta.json"
+
+                vegeta report \
+                    -type='hist[0,2ms,4ms,8ms,16ms,32ms]' \
+                    "${RUN_DIR}/results.bin" \
+                    > "${RUN_DIR}/histogram.txt"
 
                 ;;
 

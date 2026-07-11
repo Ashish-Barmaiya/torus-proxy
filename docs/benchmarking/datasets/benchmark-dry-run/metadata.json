@@ -19,7 +19,7 @@
   },
 
   "system": {
-    "timestamp": "2026-07-11T20:02:12+0530",
+    "timestamp": "2026-07-11T22:14:15+0530",
     "hostname": "ubuntu",
     "os": "Ubuntu 26.04 LTS",
     "kernel": "7.0.0-27-generic",
@@ -30,17 +30,16 @@
 
   "git": {
     "branch": "engineering/benchmark-automation",
-    "commit": "45e0c4c90a36d252ee8ef1c1f3f4a6d11d72618d",
+    "commit": "8edc1f0c93d17b3b1c16d9c97ed945f8559a5da7",
     "dirty": true
   },
 
   "tools": {
     "go": "go version go1.26.3 linux/amd64",
     "wrk": "wrk 4.2.0 [epoll] Copyright (C) 2012 Will Glozer",
-    "vegeta": "2026/07/11 20:02:12 Unknown command: version",
+    "vegeta": "Version: ",
     "perf": "perf version 7.0.6",
-    "pidstat": "sysstat version 12.7.7
-(C) Sebastien Godard (sysstat <at> orange.fr)",
+    "pidstat": "sysstat version 12.7.7",
     "vmstat": "vmstat from procps-ng 4.0.4",
     "jq": "jq-1.8.1",
     "yq": "yq (https://github.com/mikefarah/yq/) version v4.49.2"
