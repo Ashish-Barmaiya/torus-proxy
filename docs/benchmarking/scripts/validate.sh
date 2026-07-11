@@ -30,14 +30,13 @@ require_command jq
 require_command yq
 
 require_command wrk
-require_command wrk2
+require_command vegeta
 
 require_command pidstat
 require_command vmstat
 require_command ss
 
 require_command perf
-require_command go
 
 echo
 echo "Repository"
@@ -69,7 +68,7 @@ log_success "$(tool_version python3)"
 log_success "$(tool_version jq)"
 log_success "$(tool_version yq)"
 log_success "$(tool_version wrk)"
-log_success "$(tool_version wrk2)"
+log_success "$(tool_version vegeta)"
 log_success "$(tool_version perf)"
 
 echo

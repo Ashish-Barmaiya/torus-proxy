@@ -1,0 +1,61 @@
+{
+  "benchmark": {
+    "id": ""benchmark-dry-run"",
+    "title": ""Benchmark Framework Dry Run"",
+    "protocol": ""http"",
+    "url": ""http: //127.0.0.1:8080/"",
+    "threads": 2,
+    "connections": 10,
+    "duration": ""5s"",
+    "warmup": ""2s"",
+    "iterations": 1
+  },
+  "environment": {
+    "hardware_profile": ""H001"",
+    "environment_profile": ""E001"",
+    "software_profile": ""S001"",
+    "methodology_version": "1.0"
+  },
+  "system": {
+    "timestamp": "2026-07-11T11:16:26+0530",
+    "hostname": "ubuntu",
+    "os": "Ubuntu 26.04 LTS",
+    "kernel": "7.0.0-27-generic",
+    "cpu": "11th Gen Intel(R) Core(TM) i3-1115G4 @ 3.00GHz",
+    "logical_cpus": 4,
+    "memory": "6.7Gi"
+  },
+  "git": {
+    "branch": "engineering/benchmark-automation",
+    "commit": "45e0c4c90a36d252ee8ef1c1f3f4a6d11d72618d",
+    "dirty": true
+  },
+  "tools": {
+    "go": "go version go1.26.3 linux/amd64",
+    "wrk": "wrk 4.2.0 [epoll] Copyright (C) 2012 Will Glozer
+Usage: wrk <options> <url>
+  Options:
+    -c, --connections <N>  Connections to keep open
+    -d, --duration    <T>  Duration of test
+    -t, --threads     <N>  Number of threads to use
+
+    -s, --script      <S>  Load Lua script file
+    -H, --header      <H>  Add header to request
+        --latency          Print latency statistics
+        --timeout     <T>  Socket/request timeout
+    -v, --version          Print version details
+
+  Numeric arguments may include a SI unit (1k,
+    1M,
+    1G)
+  Time arguments may include a time unit (2s,
+    2m,
+    2h)
+Unknown","vegeta": "vegeta version unknown",
+    "perf": "perf version 7.0.6",
+    "pidstat": "sysstat version 12.7.7
+(C) Sebastien Godard (sysstat <at> orange.fr)","vmstat": "vmstat from procps-ng 4.0.4",
+    "jq": "jq-1.8.1",
+    "yq": "yq 3.4.3"
+  }
+}

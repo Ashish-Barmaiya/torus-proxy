@@ -52,7 +52,7 @@ for TOOL in "${TOOLS[@]}"; do
             sleep "${WARMUP%s}"
             ;;
 
-        wrk2)
+        vegeta)
             sleep "${WARMUP%s}"
             ;;
 
@@ -85,14 +85,24 @@ for TOOL in "${TOOLS[@]}"; do
 
                 ;;
 
-            wrk2)
+            vegeta)
 
-                wrk2 \
-                    -t "$(benchmark_threads "${SCENARIO}")" \
-                    -c "$(benchmark_connections "${SCENARIO}")" \
-                    -d "$(benchmark_duration "${SCENARIO}")" \
-                    "$(benchmark_url "${SCENARIO}")" \
-                    > "${RUN_DIR}/wrk2.txt"
+                cat > "${RUN_DIR}/targets.txt" <<EOF
+GET $(benchmark_url "${SCENARIO}") HTTP/1.1
+User-Agent: vegeta
+Accept: */*
+
+EOF
+
+                vegeta attack \
+                    -targets "${RUN_DIR}/targets.txt" \
+                    -rate "$(benchmark_rate "${SCENARIO}")" \
+                    -duration "$(benchmark_duration "${SCENARIO}")" \
+                    -connections "$(benchmark_connections "${SCENARIO}")" \
+                    > "${RUN_DIR}/vegeta.bin"
+
+                vegeta report -inputs "${RUN_DIR}/vegeta.bin" \
+                    > "${RUN_DIR}/vegeta.txt"
 
                 ;;
 
@@ -104,7 +114,7 @@ for TOOL in "${TOOLS[@]}"; do
 
 done
 
-"${SCRIPT_DIR}/analyze.sh" "${BENCHMARK_DIR}"
+# "${SCRIPT_DIR}/analyze.sh" "${BENCHMARK_DIR}" TODO: uncomment this line
 
 echo
 log_success "Benchmark completed."

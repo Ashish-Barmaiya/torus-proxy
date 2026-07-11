@@ -132,7 +132,7 @@ Lists every benchmarking and profiling tool used by Torus.
 Examples include:
 
 - wrk
-- wrk2
+- vegeta
 - perf
 - pprof
 - pidstat

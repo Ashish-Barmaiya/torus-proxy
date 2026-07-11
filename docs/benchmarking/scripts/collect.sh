@@ -62,7 +62,7 @@ cat > "${DATASET_DIR}/metadata.json" <<EOF
   "tools": {
     "go": "$(tool_version go)",
     "wrk": "$(tool_version wrk)",
-    "wrk2": "$(tool_version wrk2)",
+    "vegeta": "$(tool_version vegeta)",
     "perf": "$(tool_version perf)",
     "pidstat": "$(tool_version pidstat)",
     "vmstat": "$(tool_version vmstat)",

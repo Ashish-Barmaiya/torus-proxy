@@ -9,7 +9,7 @@ description: Baseline HTTP benchmark without TLS termination.
 benchmark:
   tool:
     - wrk
-    - wrk2
+    - vegeta
   protocol: http
   url: http://localhost:8080/api
 
@@ -19,6 +19,7 @@ workload:
   duration: 30s
   warmup: 30s
   iterations: 20
+  rate: 500
 
 request:
   method: GET

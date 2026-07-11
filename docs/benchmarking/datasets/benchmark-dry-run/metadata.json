@@ -1,0 +1,48 @@
+{
+  "benchmark": {
+    "id": "benchmark-dry-run",
+    "title": "Benchmark Framework Dry Run",
+    "protocol": "http",
+    "url": "http://127.0.0.1:8080/",
+    "threads": 2,
+    "connections": 10,
+    "duration": "5s",
+    "warmup": "2s",
+    "iterations": 1
+  },
+
+  "environment": {
+    "hardware_profile": "H001",
+    "environment_profile": "E001",
+    "software_profile": "S001",
+    "methodology_version": "1.0"
+  },
+
+  "system": {
+    "timestamp": "2026-07-11T20:02:12+0530",
+    "hostname": "ubuntu",
+    "os": "Ubuntu 26.04 LTS",
+    "kernel": "7.0.0-27-generic",
+    "cpu": "11th Gen Intel(R) Core(TM) i3-1115G4 @ 3.00GHz",
+    "logical_cpus": 4,
+    "memory": "6.7Gi"
+  },
+
+  "git": {
+    "branch": "engineering/benchmark-automation",
+    "commit": "45e0c4c90a36d252ee8ef1c1f3f4a6d11d72618d",
+    "dirty": true
+  },
+
+  "tools": {
+    "go": "go version go1.26.3 linux/amd64",
+    "wrk": "wrk 4.2.0 [epoll] Copyright (C) 2012 Will Glozer",
+    "vegeta": "2026/07/11 20:02:12 Unknown command: version",
+    "perf": "perf version 7.0.6",
+    "pidstat": "sysstat version 12.7.7
+(C) Sebastien Godard (sysstat <at> orange.fr)",
+    "vmstat": "vmstat from procps-ng 4.0.4",
+    "jq": "jq-1.8.1",
+    "yq": "yq (https://github.com/mikefarah/yq/) version v4.49.2"
+  }
+}

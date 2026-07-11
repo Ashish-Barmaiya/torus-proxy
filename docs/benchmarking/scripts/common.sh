@@ -54,7 +54,7 @@ repo_root() {
 }
 
 benchmark_root() {
-    echo "$(repo_root)/benchmarking"
+    echo "$(repo_root)/docs/benchmarking"
 }
 
 scenario_dir() {
@@ -124,7 +124,8 @@ scenario_value() {
     local scenario="$1"
     local key="$2"
 
-    yq "$key" "$(scenario_file "$scenario")"
+    yq -r "$key" "$(scenario_file "$scenario")"
+
 }
 
 # Command Helpers
@@ -198,11 +199,11 @@ tool_version() {
             ;;
 
         wrk)
-            wrk --version 2>/dev/null || echo "Unknown"
+            wrk --version 2>&1 | head -n 1
             ;;
 
-        wrk2)
-            wrk2 --version 2>/dev/null || echo "Unknown"
+        vegeta)
+            vegeta version 2>&1 | head -n 1
             ;;
 
         perf)
@@ -331,6 +332,10 @@ methodology_version() {
     scenario_value "$1" ".environment.methodology_version"
 }
 
+benchmark_rate() {
+    scenario_value "$1" ".workload.rate"
+}
+
 # Validation Helpers
 validate_repository_structure() {
 
@@ -341,5 +346,6 @@ validate_repository_structure() {
     require_directory "$(dataset_dir)"
     require_directory "$(report_dir)"
     require_directory "$(template_dir)"
+    require_directory "$(benchmark_root)/profiles"
 
 }

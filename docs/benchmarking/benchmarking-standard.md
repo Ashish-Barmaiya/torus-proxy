@@ -335,7 +335,7 @@ datasets/
 
         wrk-output.txt
 
-        wrk2-output.txt
+        vegeta-output.txt
 
         cpu-profile.svg
 

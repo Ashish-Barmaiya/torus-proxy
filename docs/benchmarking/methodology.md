@@ -254,7 +254,7 @@ Examples:
 
 wrk output
 
-wrk2 output
+vegeta output
 
 JSON summaries
 

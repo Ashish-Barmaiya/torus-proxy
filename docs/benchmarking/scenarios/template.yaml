@@ -6,7 +6,7 @@ description:
 benchmark:
   tool:
     - wrk
-    - wrk2
+    - vegeta
   protocol:
   url:
 

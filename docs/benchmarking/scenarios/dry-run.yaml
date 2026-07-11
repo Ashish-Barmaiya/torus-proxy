@@ -1,0 +1,32 @@
+version: 1.0
+
+id: benchmark-dry-run
+
+title: Benchmark Framework Dry Run
+
+description: Validate the benchmark automation framework.
+
+benchmark:
+  protocol: http
+  url: http://127.0.0.1:8080/
+  tools:
+    - wrk
+    - vegeta
+
+workload:
+  threads: 2
+  connections: 10
+  duration: 5s
+  warmup: 2s
+  iterations: 1
+  rate: 500
+
+request:
+  method: GET
+  payload: 1KB
+
+environment:
+  hardware_profile: H001
+  environment_profile: E001
+  software_profile: S001
+  methodology_version: 1.0
