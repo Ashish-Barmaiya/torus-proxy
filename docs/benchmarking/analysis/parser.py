@@ -69,8 +69,47 @@ def parse_wrk(path: Path) -> dict:
     return result
 
 
-def parse_vegeta(path: Path):
-    return json.loads(path.read_text())
+def parse_vegeta(path: Path) -> dict:
+    """
+    Parse a Vegeta JSON report.
+
+    All latency values are normalized to milliseconds.
+    """
+
+    data = json.loads(path.read_text())
+
+    latencies = data["latencies"]
+
+    return {
+
+        # Request statistics
+
+        "requests": data["requests"],
+        "rate": data["rate"],
+        "throughput": data["throughput"],
+        "success_ratio": data["success"],
+
+        # Latency statistics (ms)
+
+        "latency_mean_ms": latencies["mean"] / 1_000_000,
+        "latency_p50_ms": latencies["50th"] / 1_000_000,
+        "latency_p95_ms": latencies["95th"] / 1_000_000,
+        "latency_p99_ms": latencies["99th"] / 1_000_000,
+        "latency_max_ms": latencies["max"] / 1_000_000,
+
+        # Network statistics
+
+        "bytes_in_total": data["bytes_in"]["total"],
+        "bytes_in_mean": data["bytes_in"]["mean"],
+
+        "bytes_out_total": data["bytes_out"]["total"],
+        "bytes_out_mean": data["bytes_out"]["mean"],
+
+        # Response statistics
+
+        "status_codes": data.get("status_codes", {}),
+        "errors": data.get("errors", []),
+    }
 
 
 def parse_pidstat(path: Path):

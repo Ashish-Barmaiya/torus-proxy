@@ -1,200 +1,313 @@
 #!/usr/bin/env python3
 
 """
-Benchmark analysis entrypoint.
+Analyze a benchmark dataset.
 
 Pipeline:
 
-raw benchmark outputs
-        ↓
-parser.py
-        ↓
-parsed.json
-        ↓
-statistics.py
-        ↓
-summary.json
-        ↓
-plots.py
+1. Parse raw benchmark outputs.
+2. Compute statistical summaries.
+3. Generate plots.
+4. Write summary.json.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from pathlib import Path
 
-from parser import (
-    parse_pidstat,
-    parse_vegeta,
-    parse_vmstat,
-    parse_wrk,
-)
-
-from statistics import (
-    summarize_vegeta,
-    summarize_wrk,
-)
-
-from plots import (
-    cpu_plot,
-    latency_distribution,
-    latency_plot,
-    memory_plot,
-    throughput_plot,
-)
+import metrics
+import system_plots
+import vegeta_plots
+import wrk_plots
 
 
-def load_runs(tool_dir: Path):
-    runs = []
+# Parsing
 
-    for run_dir in sorted(tool_dir.glob("run-*")):
+def parse_runs(dataset_directory: Path):
+    """
+    Parse every benchmark run into parsed.json.
+    """
 
-        data = {}
+    parser = Path(__file__).parent / "parser.py"
 
-        if (run_dir / "wrk.txt").exists():
-            data["wrk"] = parse_wrk(run_dir / "wrk.txt")
+    raw_directory = dataset_directory / "raw"
 
-        if (run_dir / "vegeta.json").exists():
-            data["vegeta"] = parse_vegeta(run_dir / "vegeta.json")
+    if not raw_directory.exists():
+        return
 
-        if (run_dir / "pidstat.txt").exists():
-            data["pidstat"] = parse_pidstat(run_dir / "pidstat.txt")
+    for tool_directory in sorted(raw_directory.iterdir()):
 
-        if (run_dir / "vmstat.txt").exists():
-            data["vmstat"] = parse_vmstat(run_dir / "vmstat.txt")
-
-        runs.append(data)
-
-    return runs
-
-
-def pidstat_cpu(runs):
-
-    values = []
-
-    for run in runs:
-
-        if "pidstat" not in run:
+        if not tool_directory.is_dir():
             continue
 
-        for sample in run["pidstat"]:
-            values.append(sample["cpu"])
+        for run_directory in sorted(tool_directory.glob("run-*")):
 
-    return values
-
-
-def pidstat_memory(runs):
-
-    values = []
-
-    for run in runs:
-
-        if "pidstat" not in run:
-            continue
-
-        for sample in run["pidstat"]:
-            values.append(sample["rss"])
-
-    return values
+            subprocess.run(
+                [
+                    "python3",
+                    str(parser),
+                    "--run-dir",
+                    str(run_directory),
+                ],
+                check=True,
+            )
 
 
-def vegeta_latency(runs):
+# Plot Discovery
 
-    values = []
+def collect_plot_paths(dataset_directory: Path):
+    """
+    Discover every generated plot automatically.
 
-    for run in runs:
+    The returned dictionary mirrors the directory structure
+    under plots/.
+    """
 
-        if "vegeta" not in run:
-            continue
+    plots = {}
 
-        values.append(run["vegeta"]["latency_mean_ms"])
+    plots_directory = dataset_directory / "plots"
 
-    return values
+    if not plots_directory.exists():
+        return plots
+
+    for image in sorted(plots_directory.rglob("*.png")):
+
+        relative = image.relative_to(plots_directory)
+
+        current = plots
+
+        parts = list(relative.parts)
+
+        for part in parts[:-1]:
+
+            key = part.replace("-", "_")
+
+            current = current.setdefault(key, {})
+
+        current[parts[-1].replace(".png", "")] = str(relative)
+
+    return plots
 
 
-def analyze(dataset: Path):
+# Summary
 
-    raw = dataset / "raw"
-    plots = dataset / "plots"
+def build_summary(dataset_directory: Path):
+    """
+    Build benchmark summary from parsed runs.
+    """
 
-    plots.mkdir(exist_ok=True)
+    metadata_file = dataset_directory / "metadata.json"
 
-    summary = {}
+    with open(metadata_file) as f:
+        metadata = json.load(f)
 
-    wrk_dir = raw / "wrk"
+    summary = {
 
-    if wrk_dir.exists():
+        "metadata": {
+            "id": metadata["benchmark"]["id"],
+            "title": metadata["benchmark"]["title"],
+            "timestamp": metadata["system"]["timestamp"],
+            "hostname": metadata["system"]["hostname"],
+            "git_branch": metadata["git"]["branch"],
+            "git_commit": metadata["git"]["commit"],
+        },
 
-        runs = load_runs(wrk_dir)
+        "workload": {
+            "protocol": metadata["benchmark"]["protocol"],
+            "url": metadata["benchmark"]["url"],
+            "threads": metadata["benchmark"]["threads"],
+            "connections": metadata["benchmark"]["connections"],
+            "duration": metadata["benchmark"]["duration"],
+            "warmup": metadata["benchmark"]["warmup"],
+            "iterations": metadata["benchmark"]["iterations"],
+        },
 
-        summary["wrk"] = summarize_wrk(runs)
+        "environment": {
+            "cpu": metadata["system"]["cpu"],
+            "logical_cpus": metadata["system"]["logical_cpus"],
+            "memory": metadata["system"]["memory"],
+            "os": metadata["system"]["os"],
+            "kernel": metadata["system"]["kernel"],
+        },
 
-        throughput_plot(
+        "wrk": {},
+        "vegeta": {},
+        "plots": {},
+    }
+
+    # wrk
+
+    wrk_directory = dataset_directory / "raw" / "wrk"
+
+    if wrk_directory.exists():
+
+        runs = []
+
+        for parsed in sorted(
+            wrk_directory.glob("run-*/parsed.json")
+        ):
+
+            with open(parsed) as f:
+                runs.append(json.load(f))
+
+        if runs:
+            summary["wrk"] = metrics.summarize_wrk(runs)
+
+
+    # vegeta
+
+    vegeta_directory = dataset_directory / "raw" / "vegeta"
+
+    if vegeta_directory.exists():
+
+        runs = []
+
+        for parsed in sorted(
+            vegeta_directory.glob("run-*/parsed.json")
+        ):
+
+            with open(parsed) as f:
+                runs.append(json.load(f))
+
+        if runs:
+            summary["vegeta"] = metrics.summarize_vegeta(runs)
+
+    return summary
+
+
+# Plot Generation
+
+def generate_plots(
+    summary: dict,
+    dataset_directory: Path,
+):
+    """
+    Generate every benchmark plot.
+    """
+
+    if summary.get("wrk"):
+
+        wrk_plots.generate(
             summary,
-            plots / "wrk-throughput.png",
+            dataset_directory,
         )
 
-        latency_plot(
+    if summary.get("vegeta"):
+
+        vegeta_plots.generate(
             summary,
-            plots / "wrk-latency.png",
+            dataset_directory,
         )
 
-        cpu_plot(
-            pidstat_cpu(runs),
-            plots / "wrk-cpu.png",
-        )
+    system_plots.generate(
+        dataset_directory,
+    )
 
-        memory_plot(
-            pidstat_memory(runs),
-            plots / "wrk-memory.png",
-        )
 
-    vegeta_dir = raw / "vegeta"
+# Summary Output
 
-    if vegeta_dir.exists():
+def save_summary(
+    summary: dict,
+    dataset_directory: Path,
+):
+    """
+    Write summary.json.
+    """
 
-        runs = load_runs(vegeta_dir)
+    # Plots now exist, so discover them.
+    summary["plots"] = collect_plot_paths(
+        dataset_directory,
+    )
 
-        summary["vegeta"] = summarize_vegeta(runs)
+    with open(
+        dataset_directory / "summary.json",
+        "w",
+    ) as f:
 
-        latency_plot(
+        json.dump(
             summary,
-            plots / "vegeta-latency.png",
+            f,
+            indent=4,
         )
 
-        cpu_plot(
-            pidstat_cpu(runs),
-            plots / "vegeta-cpu.png",
-        )
 
-        memory_plot(
-            pidstat_memory(runs),
-            plots / "vegeta-memory.png",
-        )
+# Analysis Pipeline
 
-        latency_distribution(
-            vegeta_latency(runs),
-            plots / "vegeta-histogram.png",
-        )
+def analyze(
+    dataset_directory: Path,
+):
+    """
+    Complete benchmark analysis pipeline.
+    """
 
-    with open(dataset / "summary.json", "w") as fp:
-        json.dump(summary, fp, indent=4)
+    print(
+        "[INFO] Parsing benchmark runs..."
+    )
 
+    parse_runs(
+        dataset_directory,
+    )
+
+    print(
+        "[INFO] Computing statistics..."
+    )
+
+    summary = build_summary(
+        dataset_directory,
+    )
+
+    print(
+        "[INFO] Generating plots..."
+    )
+
+    generate_plots(
+        summary,
+        dataset_directory,
+    )
+
+    print(
+        "[INFO] Writing summary..."
+    )
+
+    save_summary(
+        summary,
+        dataset_directory,
+    )
+
+    print(
+        "[ OK ] Analysis complete."
+    )
+
+# CLI
 
 def main():
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Analyze a benchmark dataset."
+    )
 
     parser.add_argument(
         "dataset",
         type=Path,
-        help="Benchmark dataset directory",
+        help="Path to benchmark dataset directory.",
     )
 
     args = parser.parse_args()
 
-    analyze(args.dataset)
+    dataset_directory = args.dataset.resolve()
+
+    if not dataset_directory.exists():
+
+        parser.error(
+            f"Dataset does not exist: {dataset_directory}"
+        )
+
+    analyze(
+        dataset_directory,
+    )
 
 
 if __name__ == "__main__":

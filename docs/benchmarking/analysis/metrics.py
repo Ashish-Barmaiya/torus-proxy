@@ -123,7 +123,7 @@ def summarize_wrk(runs: list[dict]) -> dict:
 
 def summarize_vegeta(runs: list[dict]) -> dict:
     """
-    Summarize all vegeta runs.
+    Summarize all Vegeta runs.
     """
 
     return {
@@ -131,16 +131,39 @@ def summarize_vegeta(runs: list[dict]) -> dict:
             run["vegeta"]["rate"]
             for run in runs
         ),
+
         "latency_mean_ms": summarize(
             run["vegeta"]["latency_mean_ms"]
             for run in runs
         ),
+
+        "latency_p50_ms": summarize(
+            run["vegeta"]["latency_p50_ms"]
+            for run in runs
+        ),
+
         "latency_p95_ms": summarize(
             run["vegeta"]["latency_p95_ms"]
             for run in runs
         ),
+
         "latency_p99_ms": summarize(
             run["vegeta"]["latency_p99_ms"]
+            for run in runs
+        ),
+
+        "latency_max_ms": summarize(
+            run["vegeta"]["latency_max_ms"]
+            for run in runs
+        ),
+
+        "success_ratio": summarize(
+            run["vegeta"]["success_ratio"]
+            for run in runs
+        ),
+
+        "throughput": summarize(
+            run["vegeta"]["throughput"]
             for run in runs
         ),
     }

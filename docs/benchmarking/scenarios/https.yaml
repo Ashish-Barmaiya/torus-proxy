@@ -11,7 +11,7 @@ benchmark:
     - wrk
     - vegeta
   protocol: http
-  url: https://localhost:8443/api
+  url: https://localhost:3001
 
 workload:
   threads: 2
@@ -39,5 +39,5 @@ monitoring:
   perf: false
 
 output:
-  dataset: benchmark-002/http
-  report: benchmark-002-tls-termination.md
+  dataset: benchmark-002-https
+  report: benchmark-002-https.md

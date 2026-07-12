@@ -121,7 +121,7 @@ EOF
 
 done
 
-# "${SCRIPT_DIR}/analyze.sh" "${BENCHMARK_DIR}" TODO: uncomment this line
+"${SCRIPT_DIR}/analyze.sh" "${BENCHMARK_DIR}"
 
 echo
 log_success "Benchmark completed."
