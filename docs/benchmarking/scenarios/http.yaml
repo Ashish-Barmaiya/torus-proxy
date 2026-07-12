@@ -7,7 +7,7 @@ title: HTTP Baseline
 description: Baseline HTTP benchmark without TLS termination.
 
 benchmark:
-  tool:
+  tools:
     - wrk
     - vegeta
   protocol: http
@@ -39,5 +39,4 @@ monitoring:
   perf: false
 
 output:
-  dataset: benchmark-002/http
-  report: benchmark-002-tls-termination.md
+  report: benchmark-002-http-baseline.md
