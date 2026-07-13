@@ -411,76 +411,123 @@ def statistical_summary(md: Markdown, summary: dict):
 
 def _render_plot_tree(
     md: Markdown,
-    node,
+    tree: dict,
+    level: int = 2,
 ):
+    """
+    Recursively render the plot hierarchy stored in summary["plots"].
+    """
 
-    if isinstance(node, str):
+    for key in sorted(tree):
 
-        md.image(node)
+        value = tree[key]
 
-        return
-
-    for key, value in node.items():
-
-        title = key.replace(
-            "_",
-            " ",
-        ).title()
-
-        if isinstance(value, str):
-
-            md.image(
-                value,
-                title,
-            )
-
-        else:
+        if isinstance(value, dict):
 
             md.heading(
-                title,
-                level=3,
+                key.replace("_", " ").title(),
+                level=level,
             )
 
             _render_plot_tree(
                 md,
                 value,
+                level + 1,
             )
+
+        else:
+
+            title = (
+                Path(value)
+                .stem
+                .replace("-", " ")
+                .title()
+            )
+
+            md.write(
+                f"- **{title}** — `{value}`"
+            )
+
+    md.write()
 
 
 # Primary Performance Metrics
 
-def primary_metrics(md: Markdown, summary: dict):
+def primary_metrics(
+    md: Markdown,
+    summary: dict,
+):
 
     md.heading("Primary Performance Metrics")
 
-    plots = summary.get(
-        "plots",
-        {},
-    )
+    plots = summary.get("plots", {})
 
-    if "wrk" in plots:
+    #
+    # wrk
+    #
 
-        md.heading(
-            "wrk",
-            level=2,
-        )
+    wrk = plots.get("wrk", {})
 
-        _render_plot_tree(
-            md,
-            plots["wrk"],
-        )
+    if wrk:
 
-    if "vegeta" in plots:
+        md.heading("wrk", level=2)
 
-        md.heading(
-            "vegeta",
-            level=2,
-        )
+        ordered = [
+            "throughput_boxplot",
+            "throughput_errorbar",
+            "latency_boxplot",
+            "transfer_boxplot",
+        ]
 
-        _render_plot_tree(
-            md,
-            plots["vegeta"],
-        )
+        for name in ordered:
+
+            if name not in wrk:
+                continue
+
+            md.bold(
+                name.replace("_", " ").title()
+            )
+
+            md.write()
+
+            md.image(
+                wrk[name]
+            )
+
+            md.write()
+
+    #
+    # vegeta
+    #
+
+    vegeta = plots.get("vegeta", {})
+
+    if vegeta:
+
+        md.heading("vegeta", level=2)
+
+        ordered = [
+            "latency_boxplot",
+            "latency_histogram",
+            "latency_percentiles",
+        ]
+
+        for name in ordered:
+
+            if name not in vegeta:
+                continue
+
+            md.bold(
+                name.replace("_", " ").title()
+            )
+
+            md.write()
+
+            md.image(
+                vegeta[name]
+            )
+
+            md.write()
 
 
 # Supporting Performance Metrics
@@ -661,7 +708,6 @@ def _appendix_plot_index(
                 level + 1,
             )
 
-
 def appendix_c(md: Markdown, summary: dict):
 
     md.heading("Appendix C — Visual Artifacts")
@@ -669,7 +715,6 @@ def appendix_c(md: Markdown, summary: dict):
     plots = summary.get("plots", {})
 
     if not plots:
-
         md.write("No plots generated.")
         md.write()
         return
@@ -677,10 +722,9 @@ def appendix_c(md: Markdown, summary: dict):
     md.write(
         "The following visual artifacts were generated during analysis."
     )
-
     md.write()
 
-    _appendix_plot_index(md, plots)
+    _render_plot_tree(md, plots)
 
 
 # Report Generation

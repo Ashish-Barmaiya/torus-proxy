@@ -18,9 +18,61 @@ import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import statistics
 
 
 # Helpers
+
+def _annotate_boxplot(ax, values, unit=""):
+    if not values:
+        return
+
+    mean = statistics.mean(values)
+    median = statistics.median(values)
+
+    x = 1
+
+    # Mean on LEFT
+    ax.text(
+        x - 0.22,
+        mean,
+        f"Mean\n{mean:.3f}{unit}",
+        color="green",
+        fontsize=9,
+        ha="right",
+        va="center",
+    )
+
+    # Median on RIGHT
+    ax.text(
+        x + 0.22,
+        median,
+        f"Median\n{median:.3f}{unit}",
+        color="tab:orange",
+        fontsize=9,
+        ha="left",
+        va="center",
+    )
+
+    # Max on upper-right
+    ax.text(
+        x + 0.12,
+        max(values),
+        f"Max\n{max(values):.3f}{unit}",
+        fontsize=9,
+        ha="left",
+        va="center",
+    )
+
+    # Min on lower-right
+    ax.text(
+        x + 0.12,
+        min(values),
+        f"Min\n{min(values):.3f}{unit}",
+        fontsize=9,
+        ha="left",
+        va="center",
+    )
 
 def _save(fig, output: Path):
 
@@ -108,6 +160,8 @@ def latency_boxplot(
         alpha=0.30,
     )
 
+    _annotate_boxplot(ax, values, " ms")
+
     _save(
         fig,
         output,
@@ -157,14 +211,11 @@ def latency_percentiles(
         linewidth=2,
     )
 
-    for x, y in zip(
-        percentiles,
-        values,
-    ):
+    for x, y in zip(percentiles, values):
         ax.annotate(
             f"{y:.3f}",
             (x, y),
-            xytext=(0, 6),
+            xytext=(0, 7),
             textcoords="offset points",
             ha="center",
             fontsize=9,

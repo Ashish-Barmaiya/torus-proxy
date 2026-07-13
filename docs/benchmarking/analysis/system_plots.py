@@ -32,6 +32,57 @@ import matplotlib.pyplot as plt
 
 # Utilities
 
+def _annotate_boxplot(ax, values, unit=""):
+    if not values:
+        return
+
+    mean = statistics.mean(values)
+    median = statistics.median(values)
+
+    x = 1
+
+    # Mean on LEFT
+    ax.text(
+        x - 0.22,
+        mean,
+        f"Mean\n{mean:.3f}{unit}",
+        color="green",
+        fontsize=9,
+        ha="right",
+        va="center",
+    )
+
+    # Median on RIGHT
+    ax.text(
+        x + 0.22,
+        median,
+        f"Median\n{median:.3f}{unit}",
+        color="tab:orange",
+        fontsize=9,
+        ha="left",
+        va="center",
+    )
+
+    # Max on upper-right
+    ax.text(
+        x + 0.12,
+        max(values),
+        f"Max\n{max(values):.3f}{unit}",
+        fontsize=9,
+        ha="left",
+        va="center",
+    )
+
+    # Min on lower-right
+    ax.text(
+        x + 0.12,
+        min(values),
+        f"Min\n{min(values):.3f}{unit}",
+        fontsize=9,
+        ha="left",
+        va="center",
+    )
+
 def _save(fig, output: Path):
     """
     Save figure.
@@ -140,8 +191,14 @@ def _plot_band(
     output,
 ):
     """
-    Plot mean with min/max band.
+    Plot the mean time series.
+
+    The minimum/maximum envelope is intentionally omitted because it
+    becomes visually noisy with a small number of benchmark runs.
     """
+
+    if not mean:
+        return
 
     fig, ax = plt.subplots(
         figsize=(10, 5)
@@ -151,37 +208,48 @@ def _plot_band(
         range(len(mean))
     )
 
-    ax.fill_between(
-        x,
-        minimum,
-        maximum,
-        alpha=0.20,
-        label="min / max",
+    ax.plot(
+    x,
+    mean,
+    linewidth=2,
+    )
+    peak = max(mean)
+    peak_idx = mean.index(peak)
+
+    low = min(mean)
+    low_idx = mean.index(low)
+
+    ax.scatter([peak_idx], [peak], s=35)
+    ax.scatter([low_idx], [low], s=35)
+
+    ax.annotate(
+    f"Max {peak:.1f}",
+    (peak_idx, peak),
+    xytext=(0, 10),
+    textcoords="offset points",
+    ha="center",
+    fontsize=8,
     )
 
-    ax.plot(
-        x,
-        mean,
-        linewidth=2,
-        label="mean",
+    ax.annotate(
+    f"Min {low:.1f}",
+    (low_idx, low),
+    xytext=(0, -15),
+    textcoords="offset points",
+    ha="center",
+    fontsize=8,
     )
 
     ax.set_title(title)
 
-    ax.set_xlabel(
-        "Sample"
-    )
+    ax.set_xlabel("Sample")
 
-    ax.set_ylabel(
-        ylabel
-    )
+    ax.set_ylabel(ylabel)
 
     ax.grid(
         axis="y",
         alpha=0.30,
     )
-
-    ax.legend()
 
     _save(
         fig,
@@ -194,6 +262,7 @@ def _boxplot(
     title,
     ylabel,
     output,
+    unit="",
 ):
     """
     Generic box plot.
@@ -223,10 +292,13 @@ def _boxplot(
         alpha=0.30,
     )
 
+    _annotate_boxplot(ax, values, unit)
+
     _save(
         fig,
         output,
     )
+
 
 
 # CPU
@@ -306,6 +378,7 @@ def cpu_distribution(
         "CPU Utilisation Distribution",
         "CPU %",
         output,
+        "%"
     )
 
 
@@ -328,7 +401,7 @@ def memory_timeseries(
     for run in runs:
 
         samples = [
-            sample["rss"]
+            sample["rss"] /1024
             for sample in run.get(
                 "pidstat",
                 [],
@@ -352,7 +425,7 @@ def memory_timeseries(
         minimum,
         maximum,
         "Resident Memory Over Time",
-        "RSS (KB)",
+        "RSS (MB)",
         output,
     )
 
@@ -374,14 +447,15 @@ def memory_distribution(
         for sample in run.get("pidstat", []):
 
             values.append(
-                sample["rss"]
+                sample["rss"] /1024
             )
 
     _boxplot(
         values,
         "Resident Memory Distribution",
-        "RSS (KB)",
+        "RSS (MB)",
         output,
+        " MB"
     )
 
 

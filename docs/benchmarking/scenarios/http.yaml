@@ -38,4 +38,4 @@ monitoring:
   perf: false
 
 output:
-  report: benchmark-002-http-baseline.md
+  report: benchmark-002.1-http-baseline.md
