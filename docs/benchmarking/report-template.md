@@ -181,7 +181,7 @@ Include unmodified outputs.
 Examples:
 
 - wrk
-- wrk2
+- vegeta
 - perf
 - pidstat
 - pprof
@@ -408,7 +408,7 @@ Include every executed command.
 Examples:
 
 - wrk
-- wrk2
+- vegeta
 - perf
 - pidstat
 - pprof

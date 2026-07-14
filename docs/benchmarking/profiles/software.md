@@ -63,7 +63,7 @@ x86_64
 
 Kernel
 
-(Output of `uname -r`)
+7.0.0-27-generic
 
 ---
 
@@ -96,7 +96,7 @@ Default
 | Tool | Purpose |
 |------|---------|
 | wrk | Peak throughput benchmarking |
-| wrk2 | Constant-rate latency benchmarking |
+| vegeta | Constant-rate latency benchmarking |
 | Go testing (`go test -bench`) | Microbenchmarks |
 | perf | CPU profiling |
 | pprof | Go CPU, heap and allocation profiling |

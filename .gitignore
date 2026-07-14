@@ -33,3 +33,7 @@ mock_backend.go
 # TLS Cert and Key files
 cert.pem
 key.pem
+
+# Benchmark datasets
+docs/benchmarking/datasets/
+docs/benchmarking/raw/

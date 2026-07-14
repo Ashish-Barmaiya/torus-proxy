@@ -21,7 +21,7 @@ func main() {
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -34,13 +34,15 @@ func main() {
 			}
 		}
 
-		fmt.Printf("Backend :%d received request, sleeping %v...\n", port, sleep)
+		// fmt.Printf("Backend :%d received request, sleeping %v...\n", port, sleep)
 		time.Sleep(sleep)
-		fmt.Printf("Backend :%d responding OK\n", port)
+		// fmt.Printf("Backend :%d responding OK\n", port)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	fmt.Printf("Mock backend listening on :%d\n", port)
-	http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
+		fmt.Printf("Error starting server: %v\n", err)
+	}
 }

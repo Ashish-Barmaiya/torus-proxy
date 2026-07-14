@@ -1,0 +1,56 @@
+id: compare-proxies
+
+version: 1.0
+
+title: Comparative Proxy Benchmark
+
+description: >
+  Standardized workload used to compare Torus against other reverse
+  proxies under identical conditions. The proxy implementation under
+  test is selected by the benchmark harness.
+
+benchmark:
+  tool:
+    - wrk
+    - vegeta
+  protocol: http
+  url: https://localhost:8443/api
+
+workload:
+  threads: 2
+  connections: 100
+  duration: 30s
+  warmup: 30s
+  iterations: 20
+  rate: 500
+
+request:
+  method: GET
+  payload: 1KB
+
+environment:
+  hardware_profile: H001
+  environment_profile: E001
+  software_profile: S001
+  methodology_version: 1.0
+
+monitoring:
+  pidstat: true
+  vmstat: true
+  ss: true
+  pprof: false
+  perf: false
+
+comparison:
+  target: external-proxy
+  candidates:
+    - torus
+    - nginx
+    - haproxy
+    - envoy
+    - caddy
+    - traefik
+
+output:
+  dataset: comparative
+  report: benchmark-comparative-proxies.md

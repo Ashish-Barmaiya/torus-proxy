@@ -53,11 +53,11 @@ Metrics
 
 ---
 
-## wrk2
+## Vegeta
 
 Purpose
 
-Generate traffic at a constant request rate.
+Flexible HTTP workload generation with controlled-rate traffic and latency capture.
 
 Use Cases
 
@@ -65,6 +65,9 @@ Use Cases
 - Tail latency
 - Saturation testing
 - Performance regressions
+- Burst workloads
+- Replay workloads
+- Constant-rate load generation
 
 Metrics
 
@@ -74,23 +77,7 @@ Metrics
 - p99.9
 - Maximum latency
 
-Preferred for latency investigations.
-
----
-
-## Vegeta
-
-Purpose
-
-Flexible HTTP workload generation.
-
-Use Cases
-
-- Custom traffic profiles
-- Burst workloads
-- Replay workloads
-
-Future use.
+Primary load generator for latency-focused benchmarks.
 
 ---
 
@@ -306,7 +293,7 @@ Throughput
 
 Latency
 
-- wrk2
+- vegeta
 - pidstat
 
 Resource Usage
@@ -329,7 +316,7 @@ Socket Investigation
 Comparative Benchmark
 
 - wrk
-- wrk2
+- vegeta
 - pidstat
 - perf
 
@@ -342,7 +329,7 @@ Feature Benchmark
 Required
 
 - wrk
-- wrk2
+- vegeta
 - pidstat
 
 Recommended
@@ -356,7 +343,7 @@ Optimization Benchmark
 Required
 
 - wrk
-- wrk2
+- vegeta
 - pidstat
 - pprof
 - perf
@@ -368,7 +355,7 @@ Comparative Benchmark
 Required
 
 - wrk
-- wrk2
+- vegeta
 - pidstat
 - perf
 

@@ -1,0 +1,41 @@
+id: benchmark-002-http
+
+version: 1.0
+
+title: HTTP Baseline
+
+description: Baseline HTTP benchmark without TLS termination.
+
+benchmark:
+  tools:
+    - wrk
+    - vegeta
+  protocol: http
+  url: http://localhost:3001
+
+workload:
+  threads: 2
+  connections: 20 #100
+  duration: 5s #30s
+  warmup: 2s #30s
+  iterations: 5 #20
+  rate: 200 #500
+request:
+  method: GET
+  payload: 1KB
+
+environment:
+  hardware_profile: H001
+  environment_profile: E001
+  software_profile: S001
+  methodology_version: 1.0
+
+monitoring:
+  pidstat: true
+  vmstat: true
+  ss: true
+  pprof: false
+  perf: false
+
+output:
+  report: benchmark-002.1-http-baseline.md
