@@ -462,9 +462,7 @@ def primary_metrics(
 
     plots = summary.get("plots", {})
 
-    #
     # wrk
-    #
 
     wrk = plots.get("wrk", {})
 
@@ -496,9 +494,7 @@ def primary_metrics(
 
             md.write()
 
-    #
     # vegeta
-    #
 
     vegeta = plots.get("vegeta", {})
 

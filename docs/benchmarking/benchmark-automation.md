@@ -1,223 +1,427 @@
 # Torus Benchmark Automation
 
-**Version:** 1.0
+**Version:** 2.0
 **Status:** Active
 
 ---
 
 # 1. Purpose
 
-This document defines how benchmark execution, data collection, storage, and presentation are automated throughout the Torus project.
+This document describes the automated benchmarking framework used throughout the Torus project.
 
-Automation ensures that benchmark reports remain reproducible, consistent, and easy to regenerate.
+The framework standardizes benchmark execution, data collection, statistical analysis, plot generation, and report generation.
+
+The primary objectives are:
+
+- reproducibility
+- consistency
+- repeatability
+- minimal manual work
+- historical traceability
+
+Every benchmark follows the same automated pipeline.
 
 ---
 
-# 2. Repository Structure
+# 2. Architecture
 
+```
+                benchmark.sh
+                     │
+                     ▼
+                 validate.sh
+                     │
+                     ▼
+                 collect.sh
+                     │
+                     ▼
+           wrk / vegeta execution
+                     │
+                     ▼
+                 monitor.sh
+                     │
+                     ▼
+              raw benchmark data
+                     │
+                     ▼
+                 analyze.sh
+                     │
+                     ▼
+                 parser.py
+                     │
+                     ▼
+                 metrics.py
+                     │
+                     ▼
+                summary.json
+                     │
+                     ▼
+       wrk_plots.py / vegeta_plots.py
+                     │
+                     ▼
+                system_plots.py
+                     │
+                     ▼
+              report_generator.py
+                     │
+                     ▼
+                report-auto.md
+                     │
+                     ▼
+          Final benchmark report (manual)
+```
+
+---
+
+# 3. Repository Structure
+
+```
 benchmarking/
 
 ├── scripts/
-
+│   ├── analyze.sh
+│   ├── benchmark.sh
+│   ├── collect.sh
+│   ├── common.sh
+│   ├── monitor.sh
+│   └── validate.sh
+│
+├── analysis/
+│   ├── analyze.py
+│   ├── metrics.py
+│   ├── parser.py
+│   ├── report_generator.py
+│   ├── system_plots.py
+│   ├── vegeta_plots.py
+│   └── wrk_plots.py
+│
 ├── datasets/
-
 ├── reports/
-
-├── raw/
-
-└── analysis/
+└── templates/
+```
 
 ---
 
-# 3. Benchmark IDs
+# 4. Benchmark Execution
 
-Every benchmark receives a permanent identifier.
+Benchmarks are executed through a single entry point.
+
+```bash
+./benchmark.sh <benchmark-scenario>
+```
 
 Example
 
-B001
+```bash
+./benchmark.sh http
+```
 
-B002
+The benchmark scenario defines:
 
-B003
+- workload
+- protocol
+- benchmark tools
+- concurrency
+- duration
+- iterations
+- target URL
 
-Identifiers are never reused.
-
----
-
-# 4. Benchmark Scripts
-
-Each benchmark should have a dedicated script.
-
-Examples
-
-benchmark_tls.sh
-
-benchmark_parser.sh
-
-benchmark_reload.sh
-
-benchmark_compare_nginx.sh
-
-Scripts should:
-
-- execute benchmarks
-- collect system statistics
-- save outputs
-- produce machine-readable summaries
+The automation framework reads the scenario configuration and executes the entire pipeline automatically.
 
 ---
 
-# 5. Dataset Layout
+# 5. Script Responsibilities
 
+## benchmark.sh
+
+Primary entry point.
+
+Responsibilities:
+
+- validate benchmark scenario
+- prepare dataset directories
+- collect benchmark metadata
+- execute benchmark tools
+- coordinate monitoring
+- invoke analysis pipeline
+
+---
+
+## validate.sh
+
+Performs pre-flight validation.
+
+Examples:
+
+- required tools installed
+- benchmark configuration valid
+- target endpoint reachable
+- required directories exist
+
+Benchmark execution stops immediately if validation fails.
+
+---
+
+## collect.sh
+
+Collects benchmark metadata before execution.
+
+Examples:
+
+- timestamp
+- hostname
+- CPU information
+- memory
+- operating system
+- kernel
+- Git branch
+- Git commit
+- benchmark configuration
+
+The collected information is written to
+
+```
+metadata.json
+```
+
+---
+
+## monitor.sh
+
+Collects operating-system metrics while benchmarks are running.
+
+Current metrics include:
+
+- pidstat
+- vmstat
+
+Outputs are stored alongside each benchmark run.
+
+---
+
+## analyze.sh
+
+Runs the analysis pipeline after benchmark execution.
+
+Responsibilities:
+
+- parse benchmark outputs
+- compute statistics
+- generate plots
+- generate automated report
+
+---
+
+## common.sh
+
+Shared helper functions used by every script.
+
+Examples:
+
+- logging
+- scenario lookup
+- directory helpers
+- benchmark configuration
+- error handling
+
+---
+
+# 6. Analysis Pipeline
+
+The analysis stage consists of several independent modules.
+
+## parser.py
+
+Parses raw benchmark outputs into a normalized JSON representation.
+
+Supported inputs include:
+
+- wrk
+- Vegeta
+- pidstat
+- vmstat
+
+Each benchmark run produces
+
+```
+parsed.json
+```
+
+---
+
+## metrics.py
+
+Computes descriptive statistics across benchmark runs.
+
+Current metrics include:
+
+- mean
+- median
+- minimum
+- maximum
+- standard deviation
+- coefficient of variation
+- p50
+- p90
+- p95
+- p99
+
+---
+
+## analyze.py
+
+Coordinates statistical analysis.
+
+Responsibilities:
+
+- parse every benchmark run
+- aggregate statistics
+- produce summary.json
+- invoke plot generation
+
+---
+
+## wrk_plots.py
+
+Generates throughput-oriented plots.
+
+Current plots include:
+
+- throughput boxplot
+- throughput error bar
+- latency boxplot
+- transfer rate boxplot
+
+---
+
+## vegeta_plots.py
+
+Generates latency-oriented plots.
+
+Current plots include:
+
+- latency boxplot
+- latency histogram
+- latency percentile curve
+
+---
+
+## system_plots.py
+
+Generates operating-system resource visualizations.
+
+Current plots include:
+
+- CPU utilisation
+- CPU distribution
+- memory utilisation
+- memory distribution
+- context switches
+- interrupts
+- run queue
+- disk activity
+
+---
+
+## report_generator.py
+
+Generates an automated benchmark report.
+
+The generated report is intentionally concise.
+
+Its purpose is to provide:
+
+- benchmark metadata
+- statistical summaries
+- generated plots
+- experiment configuration
+
+It serves as the starting point for writing the final engineering benchmark report.
+
+---
+
+# 7. Generated Dataset
+
+Each benchmark execution produces a self-contained dataset.
+
+Example
+
+```
 datasets/
 
-B003/
+benchmark-002-http/
 
-results.json
+├── metadata.json
+├── summary.json
+├── report-auto.md
+│
+├── raw/
+│   ├── wrk/
+│   └── vegeta/
+│
+└── plots/
+```
 
-summary.csv
+Raw outputs remain unchanged.
 
-wrk-output.txt
-
-vegeta-output.txt
-
-cpu-profile.pb.gz
-
-heap-profile.pb.gz
-
-pidstat.txt
-
-vmstat.txt
-
----
-
-# 6. JSON Result Format
-
-Each benchmark produces a JSON summary.
-
-Example
-
-{
-  "benchmark": "B003",
-  "title": "TLS Termination",
-  "version": "0.3.0",
-  "hardware": "H001",
-  "environment": "E001",
-  "throughput": {
-    "mean": 17865,
-    "median": 17820,
-    "stddev": 121
-  },
-  "latency": {
-    "p50": 5.8,
-    "p95": 8.9,
-    "p99": 12.7
-  },
-  "cpu": {
-    "average": 82.3
-  }
-}
+Generated files are derived entirely from the raw data.
 
 ---
 
-# 7. CSV Summary
+# 8. Generated Artifacts
 
-summary.csv
+Every benchmark produces:
 
-contains one row per benchmark execution.
+- metadata.json
+- parsed benchmark outputs
+- summary.json
+- statistical plots
+- report-auto.md
 
-Useful for plotting.
-
----
-
-# 8. Raw Outputs
-
-Raw outputs are preserved.
-
-Never edited.
-
-Never overwritten.
+These artifacts collectively provide everything required to inspect, reproduce, and interpret the benchmark.
 
 ---
 
-# 9. Graph Generation
+# 9. Reproducibility
 
-Graphs should be generated from JSON or CSV.
+The automation framework records:
 
-Never manually edited.
+- Git commit
+- Git branch
+- benchmark configuration
+- hardware information
+- operating system
+- kernel version
+- workload parameters
 
-Preferred charts
-
-- Throughput
-- Latency
-- Resource usage
-- Historical trends
-
----
-
-# 10. Website Integration
-
-The Torus website should read benchmark JSON directly.
-
-Website responsibilities
-
-- render charts
-- render tables
-- compare benchmark versions
-
-Website should not contain benchmark logic.
-
-The repository remains the source of truth.
+These records ensure that benchmark results remain reproducible.
 
 ---
 
-# 11. Make Targets
+# 10. Design Principles
 
-Future benchmark commands.
+The benchmarking framework follows several design principles.
 
-Examples
+### Single Entry Point
 
-make benchmark-tls
+Every benchmark is executed through the same interface.
 
-make benchmark-hotreload
+### Separation of Responsibilities
 
-make benchmark-parser
+Benchmark execution, parsing, analysis, plotting, and report generation remain independent modules.
 
-make benchmark-compare
+### Immutable Raw Data
 
-Each command should:
+Raw benchmark outputs are never modified.
 
-- execute benchmark
-- collect metrics
-- store outputs
-- generate summary
+Derived artifacts are regenerated from raw data whenever necessary.
 
----
+### Extensibility
 
-# 12. Reproducibility
+New benchmark tools can be integrated by implementing:
 
-Running the same benchmark twice using the same repository revision, hardware profile, environment profile, and methodology version should produce statistically similar results.
+- parser support
+- statistical summarization
+- plot generation
 
----
-
-# 13. Historical Preservation
-
-Historical datasets are immutable.
-
-New benchmark results generate new datasets.
-
-Historical results are never overwritten.
-
----
-
-# 14. Future Automation
-
-Future work
-
-- CI benchmark pipeline
-- Oracle VM automation
-- Benchmark dashboard
-- Automatic regression detection
-- Performance history timeline
-- Grafana integration
+without modifying the rest of the pipeline.

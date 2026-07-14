@@ -8,7 +8,7 @@
 
 # 1. Purpose
 
-This document defines the official benchmarking philosophy, standards, repository organization, naming conventions, and lifecycle for all performance investigations conducted on Torus.
+This document defines the official benchmarking philosophy, standards, repository organization, automation architecture, naming conventions, dataset management, and lifecycle for all performance investigations conducted on Torus.
 
 The purpose of this standard is to ensure that every published benchmark is:
 
@@ -47,12 +47,14 @@ Every benchmark published by Torus must satisfy the following principles.
 
 ## Principle 1 — Reproducibility
 
-Another engineer should be able to reproduce the benchmark using only the repository contents.
+Another engineer should be able to reproduce every published benchmark using the repository contents together with the corresponding published benchmark dataset.
 
 This includes:
 
+- benchmark automation
+- benchmark configuration
+- benchmark dataset
 - commands
-- configuration
 - topology
 - hardware profile
 - software versions
@@ -124,7 +126,7 @@ Every benchmark must include:
 - hardware profile
 - environment profile
 - methodology version
-- raw benchmark output
+- published benchmark dataset
 - analysis
 
 ---
@@ -177,15 +179,28 @@ Experiment Design
 
 ↓
 
-Execution
+Benchmark Execution
 
 ↓
 
-Analysis
+Raw Dataset Generation
 
 ↓
 
-Conclusion
+Statistical Analysis
+
+↓
+
+Automated Report
+
+↓
+
+Engineering Interpretation
+
+↓
+
+Published Benchmark Report
+
 
 Benchmark reports are expected to document every stage.
 
@@ -196,28 +211,19 @@ Benchmark reports are expected to document every stage.
 docs/
 
     benchmarking/
-
-        benchmarking-standard.md
-
-        report-template.md
-
-        methodology.md
-
-        statistics.md
-
-        hardware-profiles.md
-
-        environment-profiles.md
-
-        tooling.md
-
-        benchmark-matrix.md
-
-        reports/
-
-        datasets/
-
-        scripts/
+    ├── benchmarking-standard.md
+    ├── methodology.md
+    ├── statistics.md
+    ├── benchmark-matrix.md
+    ├── benchmark-tooling.md
+    ├── benchmark-automation.md
+    ├── datasets.md
+    ├── report-template.md
+    ├── profiles/
+    ├── analysis/
+    ├── scripts/
+    ├── reports/
+    └── datasets/
 
 ---
 
@@ -321,27 +327,21 @@ Categories are defined in Benchmark Matrix.
 
 # 11. Data Storage
 
-Benchmark reports summarize findings.
+Benchmark reports summarize the engineering findings.
 
-Raw benchmark data is stored separately.
+Supporting benchmark datasets are generated automatically by the benchmarking framework and published separately as release artifacts.
 
-datasets/
+A typical dataset contains:
 
-    B003/
+- metadata.json
+- summary.json
+- report-auto.md
+- raw benchmark outputs
+- parsed benchmark outputs
+- generated plots
+- monitoring data
 
-        results.json
-
-        summary.csv
-
-        wrk-output.txt
-
-        vegeta-output.txt
-
-        cpu-profile.svg
-
-        heap-profile.svg
-
-Benchmark reports reference these datasets.
+Published datasets are immutable and are referenced by the corresponding benchmark report.
 
 ---
 
@@ -352,6 +352,8 @@ All benchmark reports are public.
 All benchmark methodology is public.
 
 All benchmark commands are public.
+
+Published benchmark datasets are distributed alongside benchmark reports as release artifacts.
 
 Private engineering notes are excluded.
 
@@ -371,24 +373,7 @@ Interpretations must remain proportional to the collected evidence.
 
 ---
 
-# 14. Future Expansion
-
-This standard is expected to evolve.
-
-Future additions may include:
-
-- distributed benchmarking
-- cloud benchmarking
-- multi-region latency
-- kernel profiling
-- energy consumption
-- NUMA experiments
-
-Major methodology changes require a new methodology version.
-
----
-
-# 15. Scope
+# 14. Scope
 
 This standard applies to every benchmark published for Torus, including:
 
@@ -399,3 +384,5 @@ This standard applies to every benchmark published for Torus, including:
 - optimization studies
 
 No benchmark report should deviate from this standard without explicitly documenting the reason.
+
+This standard applies equally to manually authored benchmark reports and the automated benchmarking framework that generates supporting datasets and preliminary reports.

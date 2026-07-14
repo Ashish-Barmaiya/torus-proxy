@@ -35,6 +35,7 @@ The long-term objective is not to compete directly with established production p
 - Readiness endpoint (`/readyz`)
 - Graceful shutdown
 - Comprehensive unit tests
+- Automated benchmarking and statistical analysis framework
 
 The original Node.js/TypeScript prototype remains in the [node/](node/) directory as a historical reference.
 
@@ -59,13 +60,13 @@ This repository intentionally treats documentation, benchmarking, and implementa
 
                    ▼
 
-          net/http Server
+             net/http Server
 
                    │
 
                    ▼
 
-          Longest Prefix Router
+           Longest Prefix Router
 
                    │
 
@@ -77,13 +78,13 @@ This repository intentionally treats documentation, benchmarking, and implementa
 
                    ▼
 
-        Round-Robin Load Balancer
+         Round-Robin Load Balancer
 
                    │
 
                    ▼
 
-       httputil.ReverseProxy
+          httputil.ReverseProxy
 
                    │
 
@@ -98,19 +99,22 @@ This repository intentionally treats documentation, benchmarking, and implementa
 
 Performance engineering is a core part of Torus.
 
-Every significant architectural change is accompanied by a documented benchmark report.
+Every significant architectural change is evaluated using the project's automated benchmarking framework before being documented in a benchmark report.
 
 The benchmarking framework includes:
 
+- Automated benchmark execution
+- Statistical analysis
+- Automated report generation
 - Standardized benchmark methodology
 - Hardware profiles
 - Environment profiles
 - Software baselines
-- Statistical methodology
 - Historical benchmark reports
-- Raw benchmark datasets
 
-Current reports:
+Published benchmark datasets are distributed separately as GitHub Release assets to keep the repository lightweight while preserving reproducibility.
+
+Current benchmarks reports:
 
 - [**Benchmark-001** — Node.js to Go Performance Evaluation](/docs/benchmarking/reports/Benchmark-001-nodejs-to-go-performance-evaluation.md)
 
@@ -123,7 +127,7 @@ docs/
 
 ---
 
-## Engineering Documentation
+## [Engineering Documentation](/docs)
 
 Torus maintains engineering documentation beyond source code.
 
@@ -131,11 +135,12 @@ Torus maintains engineering documentation beyond source code.
 docs/
 
 ├── benchmarking/
+│   ├── benchmarking standard
 │   ├── methodology
+│   ├── statistics
+│   ├── benchmark automation
 │   ├── benchmark reports
-│   ├── benchmark matrix
-│   ├── statistical methodology
-│   └── benchmark tooling
+│   └── benchmark datasets
 │
 └── engineering/
     ├── architecture
@@ -287,8 +292,12 @@ torus-proxy/
 │   ├── service/
 │   ├── transport/
 │   └── upstream/
+|
 ├── node/                 # Reference Node.js/TypeScript implementation
 ├── docs/
+|   ├── benchmarking/
+│   └── engineering/
+|
 ├── torus.yaml
 ├── mock_backend.go
 └── go.mod

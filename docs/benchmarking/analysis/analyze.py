@@ -217,7 +217,6 @@ def save_summary(
     Write summary.json.
     """
 
-    # Plots now exist, so discover them.
     summary["plots"] = collect_plot_paths(
         dataset_directory,
     )

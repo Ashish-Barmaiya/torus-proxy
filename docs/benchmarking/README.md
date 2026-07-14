@@ -12,6 +12,8 @@ The objective is to ensure that every reported result is:
 - Transparent
 - Comparable across time
 
+The framework includes benchmark automation, statistical analysis, visualization, report generation, and engineering documentation.
+
 ---
 
 # Philosophy
@@ -34,6 +36,7 @@ benchmarking/
 ├── benchmark-matrix.md
 ├── benchmark-tooling.md
 ├── benchmarking-standard.md
+├── datasets.md
 ├── methodology.md
 ├── report-template.md
 ├── statistics.md
@@ -45,208 +48,26 @@ benchmarking/
 |
 ├── reports/
 ├── datasets/
-├── raw/
 ├── analysis/
-└── scripts/
+├── scripts/
+├── scenarios/
+└── templates/
 ```
 
 ---
 
 # Documentation
 
-## Benchmarking Standard
-
-Defines the engineering principles and lifecycle followed by every benchmark.
-
-**Document**
-
-`benchmarking-standard.md`
-
----
-
-## Methodology
-
-Defines how experiments are designed, executed and documented.
-
-**Document**
-
-`methodology.md`
-
----
-
-## Statistical Methodology
-
-Defines how benchmark data is analyzed.
-
-Topics include:
-
-- sample size
-- mean
-- median
-- standard deviation
-- coefficient of variation
-- latency percentiles
-- outlier handling
-
-**Document**
-
-`statistics.md`
-
----
-
-## Benchmark Matrix
-
-Defines every engineering characteristic evaluated throughout Torus.
-
-Categories include:
-
-- Throughput
-- Latency
-- Resource Usage
-- Scalability
-- Reliability
-- Regression
-- Comparative
-- Correctness Under Load
-
-**Document**
-
-`benchmark-matrix.md`
-
----
-
-## Report Template
-
-Standard format used by every benchmark report.
-
-**Document**
-
-`report-template.md`
-
----
-
-## Benchmark Tooling
-
-Lists every benchmarking and profiling tool used by Torus.
-
-Examples include:
-
-- wrk
-- vegeta
-- perf
-- pprof
-- pidstat
-- vmstat
-- ss
-
-**Document**
-
-`benchmark-tooling.md`
-
----
-
-## Benchmark Automation
-
-Defines benchmark scripts, datasets, automation and future CI integration.
-
-**Document**
-
-`benchmark-automation.md`
-
----
-
-## Hardware Profiles
-
-Documents every benchmark machine used throughout the project.
-
-**Document**
-
-`/profiles/hardware.md`
-
----
-
-## Environment Profiles
-
-Documents benchmark deployment topologies.
-
-**Document**
-
-`/profiles/environment.md`
-
----
-
-## Software Baselines
-
-Documents benchmark software environments.
-
-**Document**
-
-`/profiles/software.md`
-
----
-
-# Benchmark Reports
-
-Every published benchmark receives a permanent identifier.
-
-Examples:
-
-```
-B001
-B002
-B003
-...
-```
-
-Reports are stored in
-
-```
-reports/
-```
-
-Each report contains:
-
-- objective
-- hypothesis
-- benchmark procedure
-- statistical summary
-- analysis
-- conclusions
-- reproducibility information
-
----
-
-# Benchmark Datasets
-
-Raw benchmark outputs are stored separately from reports.
-
-```
-datasets/
-```
-
-Typical contents include:
-
-- raw benchmark output
-- JSON summaries
-- CSV summaries
-- CPU profiles
-- heap profiles
-- flamegraphs
-- generated plots
-
-Historical datasets are never modified.
-
----
-
-# Benchmark Scripts
-
-Automation scripts are stored in
-
-```
-scripts/
-```
-
-Scripts may execute benchmarks, collect metrics, generate summaries and produce datasets.
+| Document | Purpose |
+|----------|---------|
+| [`benchmarking-standard.md` ](benchmarking-standard.md)| Engineering principles and lifecycle governing all benchmarks |
+| [`methodology.md`](methodology.md) | Experimental design and execution methodology |
+| [`statistics.md`](statistics.md) | Statistical analysis methodology and interpretation |
+| [`benchmark-matrix.md`](benchmark-matrix.md) | Performance characteristics evaluated throughout the project |
+| [`benchmark-tooling.md`](benchmark-tooling.md) | Benchmarking, profiling and monitoring tools |
+| [`benchmark-automation.md`](benchmark-automation.md) | Architecture of the automated benchmarking pipeline |
+| [`datasets.md`](datasets.md) | Dataset structure, publication policy and lifecycle |
+| [`report-template.md`](report-template.md) | Standard template used for published benchmark reports |
 
 ---
 
@@ -281,23 +102,107 @@ Published Benchmark Report
 
 ---
 
-# Reproducibility
+# Automation Pipeline
 
-Every benchmark report references:
+Benchmark execution is fully automated.
 
-- Hardware Profile
-- Environment Profile
-- Software Baseline
-- Methodology Version
+```text
+benchmark.sh
+      │
+      ▼
+validate.sh
+      │
+      ▼
+collect.sh
+      │
+      ▼
+wrk / vegeta
+      │
+      ▼
+monitor.sh
+      │
+      ▼
+Raw Dataset
+      │
+      ▼
+parser.py
+      │
+      ▼
+metrics.py
+      │
+      ▼
+summary.json
+      │
+      ▼
+Plot Generation
+      │
+      ▼
+report-auto.md
+      │
+      ▼
+Final Benchmark Report
+```
 
-Together, these uniquely define the benchmark environment.
+---
+
+# Benchmark Reports
+
+Published benchmark reports are stored in
+
+```text
+reports/
+```
+
+Each report documents:
+
+- Objective
+- Background
+- Hypothesis
+- Experimental setup
+- Statistical summary
+- Performance analysis
+- Threats to validity
+- Conclusion
+- Reproducibility
+
+Benchmark reports contain engineering interpretation rather than raw benchmark data.
+
+---
+
+# Benchmark Datasets
+
+Each benchmark execution produces a self-contained dataset.
+
+Typical contents include:
+
+- benchmark metadata
+- raw benchmark outputs
+- parsed results
+- statistical summaries
+- generated plots
+- automated report
+
+Datasets are generated automatically by the benchmarking framework.
+
+Published benchmark datasets are distributed separately from the repository as release assets to keep the repository lightweight while preserving reproducibility.
+
+---
+
+# Design Principles
+
+The benchmarking framework follows several core principles:
+
+- Measure before optimizing.
+- Change only one independent variable at a time.
+- Preserve raw benchmark outputs.
+- Keep statistical analysis reproducible.
+- Separate observed results from engineering interpretation.
+- Maintain historical benchmark integrity.
 
 ---
 
 # Current Status
 
-The benchmarking framework is actively evolving alongside Torus.
+The benchmarking infrastructure is complete and actively used for evaluating Torus.
 
-As new features are implemented, benchmark reports will be published documenting their engineering trade-offs, performance characteristics and implementation details.
-
-The long-term objective is to maintain a transparent historical record of Torus' performance evolution.
+Future work focuses primarily on publishing benchmark reports for new features, optimizations, regressions, scalability studies, and comparative evaluations.

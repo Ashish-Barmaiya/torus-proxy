@@ -244,7 +244,6 @@ def throughput_errorbar(
 
     ax.grid(axis="y", alpha=0.3)
 
-    # Give a sensible margin instead of starting from zero.
     lower = max(0, mean - std * 3)
     upper = mean + std * 3
 
