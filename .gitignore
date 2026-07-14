@@ -36,4 +36,8 @@ key.pem
 
 # Benchmark datasets
 docs/benchmarking/datasets/
-docs/benchmarking/raw/
+results.bin
+
+# Python
+__pycache__/
+*.py[cod]
