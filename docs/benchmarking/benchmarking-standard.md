@@ -1,8 +1,8 @@
 # Torus Benchmarking Standard
 
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Active
-**Last Updated:** 2026-07-05
+**Last Updated:** 2026-07-14
 
 ---
 
