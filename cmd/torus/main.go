@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,8 +23,15 @@ func main() {
 		Level: slog.LevelInfo,
 	}))
 
+	configPath := flag.String(
+		"config",
+		"torus.yaml",
+		"Path to configuration file",
+	)
+	flag.Parse()
+
 	// Load configuration
-	cfg, err := config.LoadConfig("torus.yaml")
+	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
 		logger.Error("failed to load configuration", "error", err)
 		os.Exit(1)

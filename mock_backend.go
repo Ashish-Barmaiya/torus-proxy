@@ -19,13 +19,21 @@ func main() {
 		}
 	}
 
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+
+		fmt.Fprintf(
+			w,
+			`{"status":"ok","backend":"localhost:%d"}`,
+			port,
+		)
 	})
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Accept an optional ?sleep= duration to simulate slow responses
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Optional delay ?sleep= duration to simulate slow responses
 		sleep := 0 * time.Second
 		if s := r.URL.Query().Get("sleep"); s != "" {
 			d, err := time.ParseDuration(s)
@@ -34,15 +42,24 @@ func main() {
 			}
 		}
 
-		// fmt.Printf("Backend :%d received request, sleeping %v...\n", port, sleep)
 		time.Sleep(sleep)
-		// fmt.Printf("Backend :%d responding OK\n", port)
+
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+
+		fmt.Fprintf(
+			w,
+			`{"status":"ok","backend":"localhost:%d"}`,
+			port,
+		)
 	})
 
-	fmt.Printf("Mock backend listening on :%d\n", port)
-	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
+	addr := fmt.Sprintf(":%d", port)
+
+	fmt.Printf("Mock backend listening on :%s\n", addr)
+
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
+		os.Exit(1)
 	}
 }

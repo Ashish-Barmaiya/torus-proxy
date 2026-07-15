@@ -92,6 +92,7 @@ GET $(benchmark_url "${SCENARIO}")
 EOF
 
                 vegeta attack \
+                    -insecure \
                     -rate="$(benchmark_rate "${SCENARIO}")" \
                     -duration="$(benchmark_duration "${SCENARIO}")" \
                     < "${RUN_DIR}/targets.txt" \
