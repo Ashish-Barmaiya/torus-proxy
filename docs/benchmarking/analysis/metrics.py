@@ -105,18 +105,20 @@ def summarize_wrk(runs: list[dict]) -> dict:
     Summarize all wrk runs.
     """
 
+    valid_runs = [run for run in runs if "wrk" in run]
+
     return {
         "requests_per_sec": summarize(
             run["wrk"]["requests_per_sec"]
-            for run in runs
+            for run in valid_runs
         ),
         "latency_avg_ms": summarize(
             run["wrk"]["latency_avg_ms"]
-            for run in runs
+            for run in valid_runs
         ),
         "transfer_mb_per_sec": summarize(
             run["wrk"]["transfer_mb_per_sec"]
-            for run in runs
+            for run in valid_runs
         ),
     }
 
@@ -126,44 +128,47 @@ def summarize_vegeta(runs: list[dict]) -> dict:
     Summarize all Vegeta runs.
     """
 
+    valid_runs = [run for run in runs if "vegeta" in run]
+
     return {
         "rate": summarize(
             run["vegeta"]["rate"]
-            for run in runs
+            for run in valid_runs
         ),
 
         "latency_mean_ms": summarize(
             run["vegeta"]["latency_mean_ms"]
-            for run in runs
+            for run in valid_runs
         ),
 
         "latency_p50_ms": summarize(
             run["vegeta"]["latency_p50_ms"]
-            for run in runs
+            for run in valid_runs
         ),
 
         "latency_p95_ms": summarize(
             run["vegeta"]["latency_p95_ms"]
-            for run in runs
+            for run in valid_runs
         ),
 
         "latency_p99_ms": summarize(
             run["vegeta"]["latency_p99_ms"]
-            for run in runs
+            for run in valid_runs
         ),
 
         "latency_max_ms": summarize(
             run["vegeta"]["latency_max_ms"]
-            for run in runs
+            for run in valid_runs
         ),
 
         "success_ratio": summarize(
             run["vegeta"]["success_ratio"]
-            for run in runs
+            for run in valid_runs
         ),
 
         "throughput": summarize(
             run["vegeta"]["throughput"]
-            for run in runs
+            for run in valid_runs
         ),
     }
+
