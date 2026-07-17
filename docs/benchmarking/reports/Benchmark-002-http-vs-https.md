@@ -14,7 +14,7 @@ This benchmark documents the performance overhead introduced by TLS termination 
 | **Title** | HTTP vs HTTPS Performance Evaluation |
 | **Date** | 2026-07-16 |
 | **Author** | Ashish Barmaiya |
-| **Torus Version** | Development Snapshot|
+| **Torus Version** | v0.1.0|
 | **Git Commit** | c1aaa11d42b54ec9556caf15ed26435e1cadb615 |
 | **Methodology Version** | [1.0](./../methodology.md) |
 | **Hardware Profile** | [H001](./../profiles/hardware.md) |
