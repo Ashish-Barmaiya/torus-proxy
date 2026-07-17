@@ -416,7 +416,7 @@ The raw artifacts are preserved without modification to ensure reproducibility a
 
 The dataset layout is documented in `docs/benchmarking/datasets.md`.
 
-> **Dataset:** GitHub Release — Benchmark B-002 (link to be added upon publication)
+> **Dataset:** Available from the [GitHub Release for Benchmark-002](https://github.com/Ashish-Barmaiya/torus-proxy/releases/tag/benchmark-002)
 
 ---
 
@@ -1534,7 +1534,7 @@ go run ./cmd/torus --config torus-https.yaml
 
 # Appendix B — Benchmark Datasets
 
-The complete benchmark datasets are published separately as release assets accompanying this report.
+The complete benchmark datasets are published separately as release assets accompanying this report. [See Here.](https://github.com/Ashish-Barmaiya/torus-proxy/releases/tag/benchmark-002)
 
 Each dataset contains:
 
