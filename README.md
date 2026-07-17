@@ -117,6 +117,7 @@ Published benchmark datasets are distributed separately as GitHub Release assets
 Current benchmarks reports:
 
 - [**Benchmark-001** — Node.js to Go Performance Evaluation](/docs/benchmarking/reports/Benchmark-001-nodejs-to-go-performance-evaluation.md)
+- [**Benchmark-002** — HTTP vs HTTPS Performance Evaluation](./docs/benchmarking/reports/Benchmark-002-http-vs-https.md)
 
 See:
 
@@ -176,7 +177,12 @@ go build -o torus ./cmd/torus
 
 ### 3. Configure
 
-The repository includes a sample configuration in [torus.yaml](torus.yaml). A minimal example looks like this:
+The repository includes two sample configuration files:
+
+- `torus-http.yaml` for an HTTP-only proxy
+- `torus-https.yaml` for TLS termination
+
+A minimal HTTP example looks like this:
 
 ```yaml
 server:
@@ -194,13 +200,22 @@ routes:
       - "http://localhost:3002"
 ```
 
-TLS can be enabled by adding a `tls` section with certificate paths and a minimum version:
+The HTTPS sample adds a `tls` section with certificate paths and a minimum version:
 
 ```yaml
+server:
+  addr: ":8443"
+
 tls:
   cert_file: "cert.pem"
   key_file: "key.pem"
   min_version: "1.2"
+```
+
+When starting the proxy, pass the config file with `-config` if you are not using the default file name:
+
+```bash
+./torus -config torus-http.yaml
 ```
 
 ### 4. Run the proxy
@@ -225,6 +240,8 @@ A request such as:
 
 ```bash
 curl http://localhost:8080/api/hello
+# or
+curl -k https://localhost:8443/api/hello
 ```
 
 The request is:
@@ -309,8 +326,8 @@ torus-proxy/
 
 | Document | Description |
 |----------|-------------|
-| [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture |
 | [`docs/benchmarking/`](./docs/benchmarking/) | Benchmark reports, methodology, tooling and statistical framework |
+| [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture |
 | [`docs/engineering/decision-records/`](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) |
 
 ---

@@ -139,7 +139,7 @@ def parse_pidstat(path: Path):
                 {
                     "time": f"{cols[0]} {cols[1]}",
                     "pid": int(cols[3]),
-                    "cpu": float(cols[9]),
+                    "cpu": float(cols[8]),
                     "rss": int(cols[13]),
                     "mem": float(cols[14]),
                     "command": cols[-1],

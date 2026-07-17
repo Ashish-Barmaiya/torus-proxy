@@ -11,15 +11,15 @@ benchmark:
     - wrk
     - vegeta
   protocol: http
-  url: http://localhost:3001
+  url: http://localhost:8080/api
 
 workload:
   threads: 2
-  connections: 20 #100
-  duration: 5s #30s
-  warmup: 2s #30s
-  iterations: 5 #20
-  rate: 200 #500
+  connections: 100
+  duration: 30s
+  warmup: 30s
+  iterations: 20
+  rate: 500
 request:
   method: GET
   payload: 1KB
@@ -38,4 +38,5 @@ monitoring:
   perf: false
 
 output:
-  report: benchmark-002.1-http-baseline.md
+dataset: benchmark-002-A-http
+report: benchmark-002.1-http-baseline.md

@@ -35,7 +35,24 @@ Example:
 
 ---
 
-# 2. Background
+# 2. Executive Summary
+
+Summarize the benchmark's key findings and conclusions.
+
+Include:
+
+- High-level result statements
+- Primary performance impacts
+- Whether the hypothesis was supported
+- Any important observations about stability or resource behaviour
+
+Example:
+
+> HTTPS reduced throughput by 15% and increased p99 latency by 10%, while CPU utilisation rose moderately and memory usage remained stable.
+
+---
+
+# 3. Background
 
 Describe why this benchmark matters.
 

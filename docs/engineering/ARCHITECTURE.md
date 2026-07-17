@@ -10,7 +10,7 @@ Unlike the Node.js version, which required `node:cluster` to fork one OS process
 
 * **Single `net/http.Server`:** Listens on the configured address (`:8080`). Go's `net/http` internally uses goroutines to handle each connection, so no manual worker management is needed.
 * **No IPC, no cluster module, no multi-process coordination.** Hot reload becomes a simple atomic pointer swap instead of a broadcast + re-parse across N workers.
-* **Memory footprint:** ~20MB under load (10× less than the Node.js cluster).
+* **Memory footprint:** ~25MB average under benchmark load (10× less than the Node.js cluster).
 
 ---
 
@@ -50,6 +50,7 @@ Each backend's `httputil.ReverseProxy` uses a custom `http.Transport`:
 | `DialContext.KeepAlive` | 30s | TCP keepalive interval |
 | `TLSHandshakeTimeout` | 10s | TLS negotiation deadline |
 | `ResponseHeaderTimeout` | 5s | Time to wait for response headers |
+| `ExpectContinueTimeout` | 1s | Wait before sending the request body after receiving `100-continue` |
 
 This ensures sustained high throughput under load without exhausting file descriptors or leaking connections.
 
@@ -130,6 +131,7 @@ The `net/http.Server` is configured with defensive timeouts to guard against slo
 | Stream piping | `stream.pipe()` via libuv event loop | `httputil.ReverseProxy` with potential `splice(2)` |
 | Health checks | Raw TCP sockets (`node:net`) | HTTP GET with `net/http.Client` |
 | Load balancing | `RoundRobinStrategy` class | `RoundRobin` struct with `sync/atomic` |
-| Memory footprint | ~200MB (4 workers) | ~20MB (1 process) |
+| Memory footprint | ~200MB (4 workers) | ~25MB average under benchmark load |
 | External dependencies | 8+ npm packages | 1 (`github.com/google/uuid`) |
-| Raw HTTP throughput | 1,647 req/s | **15,645 req/s** (~9.5× faster) |
+| HTTP throughput | 1,647 req/s | **15,617 req/s** |
+| HTTPS throughput | n/a | **14,595 req/s** |

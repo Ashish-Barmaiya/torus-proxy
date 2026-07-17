@@ -1,17 +1,20 @@
-id: benchmark-002-http
+id: benchmark-002-https
 
 version: 1.0
 
-title: HTTP Baseline
+title: HTTPS Baseline
 
-description: Baseline HTTP benchmark without TLS termination.
+description: Baseline HTTPS benchmark with TLS termination.
 
 benchmark:
-  tool:
+  tools:
     - wrk
     - vegeta
-  protocol: http
-  url: https://localhost:3001
+  protocol: https
+  url: https://localhost:8443/api
+
+torus:
+  config: torus-https.yaml
 
 workload:
   threads: 2
@@ -39,5 +42,5 @@ monitoring:
   perf: false
 
 output:
-  dataset: benchmark-002-https
-  report: benchmark-002-https.md
+  dataset: benchmark-002-B-https
+  report: benchmark-002-B-https.md
