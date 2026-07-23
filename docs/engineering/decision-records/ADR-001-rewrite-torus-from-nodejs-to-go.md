@@ -175,7 +175,7 @@ These results support the architectural decision to adopt Go as the long-term im
 
 - [Why I Ripped `stream.pipe()` Out of My Node.js API Gateway](https://ashishbarmaiya.hashnode.dev/why-i-ripped-stream-pipe-out-of-my-node-js-api-gateway)
 - [Surviving Node.js Clusters: Graceful Teardowns, Windows Quirks, and Black-Box Testing](https://ashishbarmaiya.hashnode.dev/surviving-node-js-clusters-graceful-teardowns-windows-quirks-and-black-box-testing)
-- Why I Moved Torus from Node.js to Go *(planned)*
+- [Why I Rewrote My Reverse Proxy from Node.js to Go](https://ashishbarmaiya.hashnode.dev/why-i-rewrote-my-reverse-proxy-from-node-js-to-go)
 
 ---
 
