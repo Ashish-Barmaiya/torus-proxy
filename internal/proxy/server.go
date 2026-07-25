@@ -111,7 +111,16 @@ func (s *Server) Start(addr string) error {
 	}
 
 	s.ready.Store(true)
-	s.logger.Info("Torus listening", "addr", addr, "tls", rt.TLSConfig != nil)
+
+	s.logger.Info(
+		"runtime started",
+		"generation", rt.Generation,
+	)
+	s.logger.Info(
+		"Torus listening",
+		"addr", addr,
+		"tls", rt.TLSConfig != nil,
+	)
 
 	// Start serving
 	if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -159,9 +168,17 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 func (s *Server) Reload(newRuntime *runtime.Runtime) {
 	oldRuntime := s.runtime.Swap(newRuntime)
 
-	s.logger.Info("runtime reloaded")
+	s.logger.Info(
+		"runtime reloaded",
+		"old_generation", oldRuntime.Generation,
+		"new_generation", newRuntime.Generation,
+	)
 
-	if oldRuntime != nil {
-		oldRuntime.Stop()
-	}
+	oldRuntime.Stop()
+
+	s.logger.Info(
+		"old runtime stopped",
+		"old_generation", oldRuntime.Generation,
+		"new_generation", newRuntime.Generation,
+	)
 }
