@@ -4,22 +4,27 @@ import (
 	"context"
 	"crypto/tls"
 	"sync"
+	"sync/atomic"
 	"torus-proxy/internal/routing"
 )
 
+var nextGeneration atomic.Uint64
+
 type Runtime struct {
-	Router    *routing.Router
-	TLSConfig *tls.Config
+	Generation uint64
+	Router     *routing.Router
+	TLSConfig  *tls.Config
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-func NewRuntime(router *routing.Router, tlsConfig *tls.Config, cancel context.CancelFunc) *Runtime {
+func NewRuntime(generation uint64, router *routing.Router, tlsConfig *tls.Config, cancel context.CancelFunc) *Runtime {
 	return &Runtime{
-		Router:    router,
-		TLSConfig: tlsConfig,
-		cancel:    cancel,
+		Generation: generation,
+		Router:     router,
+		TLSConfig:  tlsConfig,
+		cancel:     cancel,
 	}
 }
 

@@ -62,5 +62,7 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 
 	logger.Info("TLS config loaded", "enabled", tlsCfg != nil)
 
-	return NewRuntime(router, tlsCfg, cancel), nil
+	generation := nextGeneration.Add(1)
+
+	return NewRuntime(generation, router, tlsCfg, cancel), nil
 }
