@@ -14,7 +14,7 @@ import (
 )
 
 type Server struct {
-	runtime     *runtime.Runtime
+	runtime     atomic.Pointer[runtime.Runtime]
 	logger      *slog.Logger
 	srv         *http.Server
 	ready       atomic.Bool
@@ -23,19 +23,22 @@ type Server struct {
 }
 
 func NewServer(rt *runtime.Runtime, logger *slog.Logger) *Server {
-	return &Server{
-		runtime: rt,
-		logger:  logger,
+	s := &Server{
+		logger: logger,
 	}
+
+	s.runtime.Store(rt)
+
+	return s
 }
 
 // The HTTP Handler function
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	// Acquire a runtime context for this request
-	rt := s.runtime
+	rt := s.runtime.Load()
 
 	rt.Acquire()
-	defer rt.Release() //
+	defer rt.Release() // Release the runtime context when the request is done
 
 	// find the correct service using routing logic
 	svc := rt.Router.Route(r.URL.Path)
@@ -101,7 +104,7 @@ func (s *Server) Start(addr string) error {
 		return err
 	}
 
-	rt := s.runtime
+	rt := s.runtime.Load()
 
 	if rt.TLSConfig != nil {
 		ln = tls.NewListener(ln, rt.TLSConfig)
