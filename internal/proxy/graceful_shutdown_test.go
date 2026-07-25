@@ -35,7 +35,7 @@ func TestGracefulShutdown(t *testing.T) {
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
 
-	rt := runtime.NewRuntime(router, nil)
+	rt := runtime.NewRuntime(router, nil, nil)
 	srv := NewServer(rt, testLogger, nil)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

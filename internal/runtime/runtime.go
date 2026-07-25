@@ -13,9 +13,7 @@ type Runtime struct {
 	cancel context.CancelFunc
 }
 
-func NewRuntime(router *routing.Router, tlsConfig *tls.Config) *Runtime {
-	_, cancel := context.WithCancel(context.Background())
-
+func NewRuntime(router *routing.Router, tlsConfig *tls.Config, cancel context.CancelFunc) *Runtime {
 	return &Runtime{
 		Router:    router,
 		TLSConfig: tlsConfig,

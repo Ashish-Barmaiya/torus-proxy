@@ -62,9 +62,5 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 
 	logger.Info("TLS config loaded", "enabled", tlsCfg != nil)
 
-	rt := NewRuntime(router, tlsCfg)
-
-	_ = cancel
-
-	return rt, nil
+	return NewRuntime(router, tlsCfg, cancel), nil
 }
