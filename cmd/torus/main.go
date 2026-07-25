@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 	"torus-proxy/internal/config"
+	"torus-proxy/internal/configwatcher"
 	"torus-proxy/internal/proxy"
 	"torus-proxy/internal/runtime"
 )
@@ -51,6 +52,21 @@ func main() {
 			logger.Error("server stopped", "error", err)
 			cancel()
 			os.Exit(1)
+		}
+	}()
+
+	watcher := configwatcher.New(
+		*configPath,
+		logger,
+		server,
+	)
+
+	go func() {
+		if err := watcher.Start(rootCtx); err != nil {
+			logger.Error(
+				"configuration watcher stopped",
+				"error", err,
+			)
 		}
 	}()
 
