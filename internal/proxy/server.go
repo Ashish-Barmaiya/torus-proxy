@@ -33,8 +33,14 @@ func NewServer(rt *runtime.Runtime, logger *slog.Logger, tlsConfig *tls.Config) 
 
 // The HTTP Handler function
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
+	// Acquire a runtime context for this request
+	rt := s.runtime
+
+	rt.Acquire()
+	defer rt.Release() // Release the runtime context when the request is done
+
 	// find the correct service using routing logic
-	svc := s.runtime.Router.Route(r.URL.Path)
+	svc := rt.Router.Route(r.URL.Path)
 	if svc == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
