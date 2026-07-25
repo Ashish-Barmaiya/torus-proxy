@@ -9,7 +9,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const CurrentAPIVersion = "v1"
+
 type Config struct {
+	APIVersion  string            `yaml:"apiVersion"`
 	Server      ServerConfig      `yaml:"server"`
 	HealthCheck HealthCheckConfig `yaml:"health"`
 	Routes      []RouteConfig     `yaml:"routes"`
@@ -82,5 +85,19 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Validate the configuration schema version
+	switch config.APIVersion {
+	case CurrentAPIVersion:
+		// Supported configuration schema
+
+	default:
+		return nil, fmt.Errorf(
+			"unsupported config api version %q (expected %q)",
+			config.APIVersion,
+			CurrentAPIVersion,
+		)
+	}
+
 	return &config, nil
 }
