@@ -154,3 +154,14 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 	s.logger.Info("forced shutdown complete")
 	return nil
 }
+
+// Reload replaces the current runtime with a new one and stops the old runtime.
+func (s *Server) Reload(newRuntime *runtime.Runtime) {
+	oldRuntime := s.runtime.Swap(newRuntime)
+
+	s.logger.Info("runtime reloaded")
+
+	if oldRuntime != nil {
+		oldRuntime.Stop()
+	}
+}
