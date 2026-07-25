@@ -20,14 +20,12 @@ type Server struct {
 	ready       atomic.Bool
 	baseCtx     context.Context
 	forceCancel context.CancelFunc
-	tlsConfig   *tls.Config
 }
 
-func NewServer(rt *runtime.Runtime, logger *slog.Logger, tlsConfig *tls.Config) *Server {
+func NewServer(rt *runtime.Runtime, logger *slog.Logger) *Server {
 	return &Server{
-		runtime:   rt,
-		logger:    logger,
-		tlsConfig: tlsConfig,
+		runtime: rt,
+		logger:  logger,
 	}
 }
 
@@ -37,7 +35,7 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	rt := s.runtime
 
 	rt.Acquire()
-	defer rt.Release() // Release the runtime context when the request is done
+	defer rt.Release() //
 
 	// find the correct service using routing logic
 	svc := rt.Router.Route(r.URL.Path)
@@ -103,12 +101,14 @@ func (s *Server) Start(addr string) error {
 		return err
 	}
 
-	if s.tlsConfig != nil {
-		ln = tls.NewListener(ln, s.tlsConfig)
+	rt := s.runtime
+
+	if rt.TLSConfig != nil {
+		ln = tls.NewListener(ln, rt.TLSConfig)
 	}
 
 	s.ready.Store(true)
-	s.logger.Info("Torus listening", "addr", addr, "tls", s.tlsConfig != nil)
+	s.logger.Info("Torus listening", "addr", addr, "tls", rt.TLSConfig != nil)
 
 	// Start serving
 	if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {

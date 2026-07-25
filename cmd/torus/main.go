@@ -43,7 +43,7 @@ func main() {
 	defer cancel()
 
 	// Start proxy
-	server := proxy.NewServer(rt, logger, rt.TLSConfig)
+	server := proxy.NewServer(rt, logger)
 
 	go func() {
 		logger.Info("Torus is running", "addr", cfg.Server.Addr)

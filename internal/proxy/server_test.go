@@ -30,7 +30,7 @@ func setupProxy(t *testing.T, targetURLs []string) *Server {
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
 	rt := runtime.NewRuntime(router, nil, nil)
-	return NewServer(rt, testLogger, nil)
+	return NewServer(rt, testLogger)
 }
 
 func TestProxyFlow_Basic(t *testing.T) {
