@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 	"torus-proxy/internal/routing"
+	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/service"
 	"torus-proxy/internal/upstream"
 )
@@ -34,7 +35,8 @@ func TestGracefulShutdown(t *testing.T) {
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
 
-	srv := NewServer(router, testLogger, nil)
+	rt := runtime.NewRuntime(router, nil)
+	srv := NewServer(rt, testLogger, nil)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

@@ -9,12 +9,12 @@ import (
 	"sync/atomic"
 	"time"
 	"torus-proxy/internal/middleware"
-	"torus-proxy/internal/routing"
+	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/transport"
 )
 
 type Server struct {
-	router      *routing.Router
+	runtime     *runtime.Runtime
 	logger      *slog.Logger
 	srv         *http.Server
 	ready       atomic.Bool
@@ -23,9 +23,9 @@ type Server struct {
 	tlsConfig   *tls.Config
 }
 
-func NewServer(router *routing.Router, logger *slog.Logger, tlsConfig *tls.Config) *Server {
+func NewServer(rt *runtime.Runtime, logger *slog.Logger, tlsConfig *tls.Config) *Server {
 	return &Server{
-		router:    router,
+		runtime:   rt,
 		logger:    logger,
 		tlsConfig: tlsConfig,
 	}
@@ -34,7 +34,7 @@ func NewServer(router *routing.Router, logger *slog.Logger, tlsConfig *tls.Confi
 // The HTTP Handler function
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	// find the correct service using routing logic
-	svc := s.router.Route(r.URL.Path)
+	svc := s.runtime.Router.Route(r.URL.Path)
 	if svc == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return

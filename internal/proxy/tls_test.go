@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 	"torus-proxy/internal/routing"
+	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/service"
 	"torus-proxy/internal/upstream"
 )
@@ -46,7 +47,8 @@ func TestTLSIntegration(t *testing.T) {
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
 
-	srv := NewServer(router, testLogger, tlsCfg)
+	rt := runtime.NewRuntime(router, tlsCfg)
+	srv := NewServer(rt, testLogger, tlsCfg)
 
 	// Start torus server on a random port with TLS
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

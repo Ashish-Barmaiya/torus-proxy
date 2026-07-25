@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"torus-proxy/internal/routing"
+	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/service"
 	"torus-proxy/internal/upstream"
 )
@@ -28,7 +29,8 @@ func setupProxy(t *testing.T, targetURLs []string) *Server {
 	svc := service.NewService(backends)
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
-	return NewServer(router, testLogger, nil)
+	rt := runtime.NewRuntime(router, nil)
+	return NewServer(rt, testLogger, nil)
 }
 
 func TestProxyFlow_Basic(t *testing.T) {
