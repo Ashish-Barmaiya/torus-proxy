@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,11 +126,41 @@ func (c *Config) Validate() error {
 				)
 			}
 
-			if u.Host == "" {
+			host := u.Hostname()
+			port := u.Port()
+
+			if host == "" {
 				return fmt.Errorf(
 					"routes[%d].upstream[%d]: missing host",
 					i,
 					j,
+				)
+			}
+
+			if port == "" {
+				return fmt.Errorf(
+					"routes[%d].upstream[%d]: missing port",
+					i,
+					j,
+				)
+			}
+
+			portNum, err := strconv.Atoi(port)
+			if err != nil {
+				return fmt.Errorf(
+					"routes[%d].upstream[%d]: invalid port %q",
+					i,
+					j,
+					port,
+				)
+			}
+
+			if portNum < 1 || portNum > 65535 {
+				return fmt.Errorf(
+					"routes[%d].upstream[%d]: port %d out of range",
+					i,
+					j,
+					portNum,
 				)
 			}
 		}
