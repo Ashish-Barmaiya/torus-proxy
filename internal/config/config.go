@@ -3,7 +3,9 @@ package config
 import (
 	"crypto/tls"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -46,6 +48,113 @@ func (h HealthCheckConfig) Interval() time.Duration {
 
 func (h HealthCheckConfig) Timeout() time.Duration {
 	return time.Duration(h.TimeoutMs) * time.Millisecond
+}
+
+// Validate config file
+func (c *Config) Validate() error {
+	// Server
+	if strings.TrimSpace(c.Server.Addr) == "" {
+		return fmt.Errorf("server.addr must not be empty")
+	}
+
+	// Health checks
+	if c.HealthCheck.IntervalMs <= 0 {
+		return fmt.Errorf("health.interval_ms must be greater than 0")
+	}
+
+	if c.HealthCheck.TimeoutMs <= 0 {
+		return fmt.Errorf("health.timeout_ms must be greater than 0")
+	}
+
+	if c.HealthCheck.TimeoutMs > c.HealthCheck.IntervalMs {
+		return fmt.Errorf("health.timeout_ms cannot be greater than health.interval_ms")
+	}
+
+	if strings.TrimSpace(c.HealthCheck.Path) == "" {
+		return fmt.Errorf("health.path must not be empty")
+	}
+
+	if !strings.HasPrefix(c.HealthCheck.Path, "/") {
+		return fmt.Errorf("health.path must start with '/'")
+	}
+
+	// Routes
+	if len(c.Routes) == 0 {
+		return fmt.Errorf("at least one route must be configured")
+	}
+
+	seenPaths := make(map[string]struct{})
+
+	for i, route := range c.Routes {
+		if strings.TrimSpace(route.Path) == "" {
+			return fmt.Errorf("routes[%d].path must not be empty", i)
+		}
+
+		if _, exists := seenPaths[route.Path]; exists {
+			return fmt.Errorf("duplicate route path %q", route.Path)
+		}
+		seenPaths[route.Path] = struct{}{}
+
+		if len(route.Upstreams) == 0 {
+			return fmt.Errorf("routes[%d] must contain at least one upstream", i)
+		}
+
+		for j, upstream := range route.Upstreams {
+			if strings.TrimSpace(upstream) == "" {
+				return fmt.Errorf("routes[%d].upstream[%d] must not be empty", i, j)
+			}
+
+			u, err := url.ParseRequestURI(upstream)
+			if err != nil {
+				return fmt.Errorf(
+					"routes[%d].upstream[%d]: invalid URL: %w",
+					i,
+					j,
+					err,
+				)
+			}
+
+			switch u.Scheme {
+			case "http", "https":
+			default:
+				return fmt.Errorf(
+					"routes[%d].upstream[%d]: unsupported URL scheme %q",
+					i,
+					j,
+					u.Scheme,
+				)
+			}
+
+			if u.Host == "" {
+				return fmt.Errorf(
+					"routes[%d].upstream[%d]: missing host",
+					i,
+					j,
+				)
+			}
+		}
+	}
+
+	// TLS
+	if c.Tls != nil {
+		if strings.TrimSpace(c.Tls.CertFile) == "" {
+			return fmt.Errorf("tls.cert_file must not be empty")
+		}
+
+		if strings.TrimSpace(c.Tls.KeyFile) == "" {
+			return fmt.Errorf("tls.key_file must not be empty")
+		}
+
+		switch c.Tls.MinVersion {
+		case "", "1.2", "1.3":
+		default:
+			return fmt.Errorf(
+				"tls.min_version must be one of: 1.2, 1.3",
+			)
+		}
+	}
+
+	return nil
 }
 
 func (t *TlsConfig) LoadTlsConfig() (*tls.Config, error) {
@@ -97,6 +206,10 @@ func LoadConfig(path string) (*Config, error) {
 			config.APIVersion,
 			CurrentAPIVersion,
 		)
+	}
+
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 
 	return &config, nil
