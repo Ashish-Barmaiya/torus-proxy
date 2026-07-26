@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 	"torus-proxy/internal/middleware"
@@ -15,6 +16,7 @@ import (
 
 type Server struct {
 	runtime     atomic.Pointer[runtime.Runtime]
+	runtimeMu   sync.RWMutex
 	logger      *slog.Logger
 	srv         *http.Server
 	ready       atomic.Bool
@@ -35,9 +37,12 @@ func NewServer(rt *runtime.Runtime, logger *slog.Logger) *Server {
 // The HTTP Handler function
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	// Acquire a runtime context for this request
+	// RWMutex prevents race window between load() and acquire() operation
+	s.runtimeMu.RLock()
 	rt := s.runtime.Load()
 
 	rt.Acquire()
+	s.runtimeMu.RUnlock()
 	defer rt.Release() // Release the runtime context when the request is done
 
 	// find the correct service using routing logic
@@ -166,7 +171,12 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 
 // Reload replaces the current runtime with a new one and stops the old runtime.
 func (s *Server) Reload(newRuntime *runtime.Runtime) {
+	// Swap the runtime pointer
+	// Lock prevents any new request to load and acquire old runtime while runtimes are being swapped
+	s.runtimeMu.Lock()
 	oldRuntime := s.runtime.Swap(newRuntime)
+
+	s.runtimeMu.Unlock()
 
 	s.logger.Info(
 		"runtime reloaded",
