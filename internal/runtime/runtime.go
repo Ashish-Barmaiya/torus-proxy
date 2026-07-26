@@ -12,6 +12,7 @@ var nextGeneration atomic.Uint64
 
 type Runtime struct {
 	Generation uint64
+	Addr       string
 	Router     *routing.Router
 	TLSConfig  *tls.Config
 
@@ -19,9 +20,10 @@ type Runtime struct {
 	wg     sync.WaitGroup
 }
 
-func NewRuntime(generation uint64, router *routing.Router, tlsConfig *tls.Config, cancel context.CancelFunc) *Runtime {
+func NewRuntime(generation uint64, addr string, router *routing.Router, tlsConfig *tls.Config, cancel context.CancelFunc) *Runtime {
 	return &Runtime{
 		Generation: generation,
+		Addr:       addr,
 		Router:     router,
 		TLSConfig:  tlsConfig,
 		cancel:     cancel,

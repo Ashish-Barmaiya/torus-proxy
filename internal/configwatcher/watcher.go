@@ -4,7 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"path/filepath"
-	"torus-proxy/internal/proxy"
+	"time"
+	"torus-proxy/internal/reload"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -12,18 +13,14 @@ import (
 type Watcher struct {
 	configPath string
 	logger     *slog.Logger
-	server     *proxy.Server
+	manager    *reload.Manager
 }
 
-func New(
-	configPath string,
-	logger *slog.Logger,
-	server *proxy.Server,
-) *Watcher {
+func New(configPath string, logger *slog.Logger, manager *reload.Manager) *Watcher {
 	return &Watcher{
 		configPath: configPath,
 		logger:     logger,
-		server:     server,
+		manager:    manager,
 	}
 }
 
@@ -33,6 +30,8 @@ func (w *Watcher) Start(ctx context.Context) error {
 		return err
 	}
 	defer watcher.Close()
+
+	var debounce *time.Timer
 
 	configPath, err := filepath.Abs(w.configPath)
 	if err != nil {
@@ -73,11 +72,17 @@ func (w *Watcher) Start(ctx context.Context) error {
 				continue
 			}
 
-			w.logger.Info(
-				"configuration changed",
-				"name", event.Name,
-				"op", event.Op.String(),
-			)
+			if debounce != nil {
+				debounce.Stop()
+			}
+			debounce = time.AfterFunc(250*time.Millisecond, func() {
+				if err := w.manager.Reload(); err != nil {
+					w.logger.Error(
+						"failed to reload configuration",
+						"error", err,
+					)
+				}
+			})
 
 		case err, ok := <-watcher.Errors:
 			if !ok {

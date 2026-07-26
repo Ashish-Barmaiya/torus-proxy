@@ -48,7 +48,7 @@ func TestTLSIntegration(t *testing.T) {
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
 
-	rt := runtime.NewRuntime(1, router, tlsCfg, forceCancel)
+	rt := runtime.NewRuntime(1, "", router, tlsCfg, forceCancel)
 	srv := NewServer(rt, testLogger)
 
 	// Start torus server on a random port with TLS

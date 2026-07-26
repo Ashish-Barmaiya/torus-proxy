@@ -177,8 +177,7 @@ func (s *Server) Reload(newRuntime *runtime.Runtime) {
 	oldRuntime.Stop()
 
 	s.logger.Info(
-		"old runtime stopped",
-		"old_generation", oldRuntime.Generation,
-		"new_generation", newRuntime.Generation,
+		"runtime retired",
+		"generation", oldRuntime.Generation,
 	)
 }

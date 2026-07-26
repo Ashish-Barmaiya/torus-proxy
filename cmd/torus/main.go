@@ -8,10 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	"torus-proxy/internal/config"
 	"torus-proxy/internal/configwatcher"
 	"torus-proxy/internal/proxy"
-	"torus-proxy/internal/runtime"
+	"torus-proxy/internal/reload"
 )
 
 func main() {
@@ -27,16 +26,16 @@ func main() {
 	)
 	flag.Parse()
 
-	// Load configuration
-	cfg, err := config.LoadConfig(*configPath)
-	if err != nil {
-		logger.Error("failed to load configuration", "error", err)
-		os.Exit(1)
-	}
+	// Build runtime manager
+	manager := reload.NewManager(
+		*configPath,
+		logger,
+	)
 
-	rt, err := runtime.BuildRuntime(cfg, logger)
+	// Build initial runtime
+	rt, err := manager.BuildInitialRuntime()
 	if err != nil {
-		logger.Error("failed to build runtime", "error", err)
+		logger.Error("failed to build initial runtime", "error", err)
 		os.Exit(1)
 	}
 
@@ -45,20 +44,22 @@ func main() {
 
 	// Start proxy
 	server := proxy.NewServer(rt, logger)
+	manager.SetServer(server)
 
 	go func() {
-		logger.Info("Torus is running", "addr", cfg.Server.Addr)
-		if err := server.Start(cfg.Server.Addr); err != nil {
+		logger.Info("Torus is running", "addr", rt.Addr)
+		if err := server.Start(rt.Addr); err != nil {
 			logger.Error("server stopped", "error", err)
 			cancel()
 			os.Exit(1)
 		}
 	}()
 
+	// Create and start config watcher
 	watcher := configwatcher.New(
 		*configPath,
 		logger,
-		server,
+		manager,
 	)
 
 	go func() {

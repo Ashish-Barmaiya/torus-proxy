@@ -64,5 +64,5 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 
 	generation := nextGeneration.Add(1)
 
-	return NewRuntime(generation, router, tlsCfg, cancel), nil
+	return NewRuntime(generation, cfg.Server.Addr, router, tlsCfg, cancel), nil
 }
