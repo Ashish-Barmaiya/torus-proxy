@@ -19,6 +19,8 @@ type Server struct {
 	runtimeMu   sync.RWMutex
 	logger      *slog.Logger
 	srv         *http.Server
+	listener    net.Listener
+	started     chan string
 	ready       atomic.Bool
 	baseCtx     context.Context
 	forceCancel context.CancelFunc
@@ -26,7 +28,8 @@ type Server struct {
 
 func NewServer(rt *runtime.Runtime, logger *slog.Logger) *Server {
 	s := &Server{
-		logger: logger,
+		logger:  logger,
+		started: make(chan string, 1),
 	}
 
 	s.runtime.Store(rt)
@@ -72,6 +75,10 @@ func (s *Server) Handler() http.Handler {
 	return h
 }
 
+func (s *Server) WaitStarted() string {
+	return <-s.started
+}
+
 func (s *Server) Start(addr string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/", s.Handler())
@@ -108,6 +115,10 @@ func (s *Server) Start(addr string) error {
 	if err != nil {
 		return err
 	}
+
+	s.listener = ln
+
+	s.started <- ln.Addr().String()
 
 	rt := s.runtime.Load()
 
