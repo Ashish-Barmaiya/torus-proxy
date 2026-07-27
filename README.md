@@ -29,12 +29,14 @@ The long-term objective is not to compete directly with established production p
 - Longest-prefix route matching with path-segment boundaries
 - Round-robin load balancing across configured upstreams
 - Active health probing for each backend with configurable interval and timeout
+- Zero-downtime configuration hot reload using atomic runtime replacement
+- Runtime generation management with reference-counted retirement
 - Automatic header injection for forwarded client information and request tracing
 - Optional TLS termination from YAML config
 - Structured request logging
 - Readiness endpoint (`/readyz`)
-- Graceful shutdown
-- Comprehensive unit tests
+- Graceful shutdown with request draining
+- Comprehensive unit, component, and integration tests
 - Automated benchmarking and statistical analysis framework
 
 The original Node.js/TypeScript prototype remains in the [node/](node/) directory as a historical reference.
@@ -55,39 +57,31 @@ This repository intentionally treats documentation, benchmarking, and implementa
 
 ```
                 Client
-
                    │
-
                    ▼
 
              net/http Server
-
                    │
+                   ▼
 
+          Runtime (atomic.Pointer)
+                   │
                    ▼
 
            Longest Prefix Router
-
                    │
-
                    ▼
 
               Service Layer
-
                    │
-
                    ▼
 
          Round-Robin Load Balancer
-
                    │
-
                    ▼
 
           httputil.ReverseProxy
-
                    │
-
                    ▼
 
             Upstream Backend
@@ -270,11 +264,16 @@ go test -race ./...
 
 Current test coverage includes:
 
-- routing
-- load balancing
-- backend health
-- proxy behaviour
-- graceful error handling
+- Configuration parsing and validation
+- Longest-prefix routing
+- Round-robin load balancing
+- Backend health management
+- Reverse proxy request forwarding
+- Runtime hot reload
+- Concurrent runtime replacement
+- Graceful shutdown and request draining
+
+Integration tests exercise the complete production startup path, runtime reload pipeline, and graceful shutdown behavior. All tests are regularly executed with Go's race detector.
 
 ---
 
@@ -282,9 +281,7 @@ Current test coverage includes:
 
 Planned work includes:
 
-- Hot configuration reload
 - Prometheus metrics
-- Comparative benchmarking
 - Allocation reduction
 - Allocation-free HTTP parsing
 - Advanced networking optimizations
