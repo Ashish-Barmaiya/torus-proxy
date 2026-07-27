@@ -47,9 +47,9 @@ The original Node.js/TypeScript prototype remains in the [node/](node/) director
 
 Torus is developed with a strong emphasis on engineering discipline.
 
-Major architectural decisions are documented through Architecture Decision Records (ADRs), while performance-sensitive changes are validated through reproducible benchmark reports.
+Major architectural decisions are documented through [Architecture Decision Records (ADRs)](./docs/engineering/decision-records/), while performance-sensitive changes are validated through reproducible [benchmark reports](./docs/benchmarking/reports/).
 
-This repository intentionally treats documentation, benchmarking, and implementation as equally important parts of the engineering process.
+This repository intentionally treats documentation, benchmarking, and implementation as equally important parts of the engineering process. In practice, that means the project ships with an extensive documentation suite covering architecture, design decisions, benchmarking methodology, reports, and datasets.
 
 ---
 
@@ -122,9 +122,9 @@ docs/
 
 ---
 
-## [Engineering Documentation](/docs)
+## Engineering Documentation
 
-Torus maintains engineering documentation beyond source code.
+Torus maintains substantial engineering documentation beyond the source code.
 
 ```
 docs/
@@ -143,7 +143,7 @@ docs/
     └── architecture decision records
 ```
 
-Architecture Decision Records (ADRs) document major architectural decisions together with their rationale and consequences.
+The documentation set is intended to make the system easy to understand, evaluate, and extend. Architecture Decision Records (ADRs) document major architectural decisions together with their rationale and consequences, while the benchmarking docs capture methodology, tooling, and results.
 
 ---
 
@@ -171,10 +171,10 @@ go build -o torus ./cmd/torus
 
 ### 3. Configure
 
-The repository includes two sample configuration files:
+The repository includes sample configuration files in [configs/](configs/):
 
-- `torus-http.yaml` for an HTTP-only proxy
-- `torus-https.yaml` for TLS termination
+- [configs/torus-http.yaml](configs/torus-http.yaml) for an HTTP-only proxy
+- [configs/torus-https.yaml](configs/torus-https.yaml) for TLS termination
 
 A minimal HTTP example looks like this:
 
@@ -209,7 +209,7 @@ tls:
 When starting the proxy, pass the config file with `-config` if you are not using the default file name:
 
 ```bash
-./torus -config torus-http.yaml
+./torus -config configs/torus-http.yaml
 ```
 
 ### 4. Run the proxy
@@ -298,15 +298,18 @@ torus-proxy/
 │       └── main.go
 ├── internal/
 │   ├── config/
+│   ├── configwatcher/
 │   ├── health/
 │   ├── loadbalancer/
 │   ├── middleware/
 │   ├── proxy/
+│   ├── reload/
 │   ├── routing/
+│   ├── runtime/
 │   ├── service/
 │   ├── transport/
 │   └── upstream/
-|
+├── integration/          # Integration tests
 ├── node/                 # Reference Node.js/TypeScript implementation
 ├── docs/
 |   ├── benchmarking/
@@ -323,9 +326,9 @@ torus-proxy/
 
 | Document | Description |
 |----------|-------------|
-| [`docs/benchmarking/`](./docs/benchmarking/) | Benchmark reports, methodology, tooling and statistical framework |
-| [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture |
-| [`docs/engineering/decision-records/`](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) |
+| [docs/benchmarking](./docs/benchmarking/) | Benchmark reports, methodology, tooling, and statistical framework |
+| [docs/engineering/ARCHITECTURE.md](./docs/engineering/ARCHITECTURE.md) | System architecture |
+| [docs/engineering/decision-records](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) |
 
 ---
 
