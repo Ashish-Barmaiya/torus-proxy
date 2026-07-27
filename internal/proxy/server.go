@@ -6,35 +6,50 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 	"torus-proxy/internal/middleware"
-	"torus-proxy/internal/routing"
+	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/transport"
 )
 
 type Server struct {
-	router      *routing.Router
+	runtime     atomic.Pointer[runtime.Runtime]
+	runtimeMu   sync.RWMutex
 	logger      *slog.Logger
 	srv         *http.Server
+	listener    net.Listener
+	started     chan string
 	ready       atomic.Bool
 	baseCtx     context.Context
 	forceCancel context.CancelFunc
-	tlsConfig   *tls.Config
 }
 
-func NewServer(router *routing.Router, logger *slog.Logger, tlsConfig *tls.Config) *Server {
-	return &Server{
-		router:    router,
-		logger:    logger,
-		tlsConfig: tlsConfig,
+func NewServer(rt *runtime.Runtime, logger *slog.Logger) *Server {
+	s := &Server{
+		logger:  logger,
+		started: make(chan string, 1),
 	}
+
+	s.runtime.Store(rt)
+
+	return s
 }
 
 // The HTTP Handler function
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
+	// Acquire a runtime context for this request
+	// RWMutex prevents race window between load() and acquire() operation
+	s.runtimeMu.RLock()
+	rt := s.runtime.Load()
+
+	rt.Acquire()
+	s.runtimeMu.RUnlock()
+	defer rt.Release() // Release the runtime context when the request is done
+
 	// find the correct service using routing logic
-	svc := s.router.Route(r.URL.Path)
+	svc := rt.Router.Route(r.URL.Path)
 	if svc == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
@@ -58,6 +73,10 @@ func (s *Server) Handler() http.Handler {
 		h = middleware.LoggingMiddleware(s.logger)(h)
 	}
 	return h
+}
+
+func (s *Server) WaitStarted() string {
+	return <-s.started
 }
 
 func (s *Server) Start(addr string) error {
@@ -97,12 +116,27 @@ func (s *Server) Start(addr string) error {
 		return err
 	}
 
-	if s.tlsConfig != nil {
-		ln = tls.NewListener(ln, s.tlsConfig)
+	s.listener = ln
+
+	s.started <- ln.Addr().String()
+
+	rt := s.runtime.Load()
+
+	if rt.TLSConfig != nil {
+		ln = tls.NewListener(ln, rt.TLSConfig)
 	}
 
 	s.ready.Store(true)
-	s.logger.Info("Torus listening", "addr", addr, "tls", s.tlsConfig != nil)
+
+	s.logger.Info(
+		"runtime started",
+		"generation", rt.Generation,
+	)
+	s.logger.Info(
+		"Torus listening",
+		"addr", addr,
+		"tls", rt.TLSConfig != nil,
+	)
 
 	// Start serving
 	if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -144,4 +178,27 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 
 	s.logger.Info("forced shutdown complete")
 	return nil
+}
+
+// Reload replaces the current runtime with a new one and stops the old runtime.
+func (s *Server) Reload(newRuntime *runtime.Runtime) {
+	// Swap the runtime pointer
+	// Lock prevents any new request to load and acquire old runtime while runtimes are being swapped
+	s.runtimeMu.Lock()
+	oldRuntime := s.runtime.Swap(newRuntime)
+
+	s.runtimeMu.Unlock()
+
+	s.logger.Info(
+		"runtime reloaded",
+		"old_generation", oldRuntime.Generation,
+		"new_generation", newRuntime.Generation,
+	)
+
+	oldRuntime.Stop()
+
+	s.logger.Info(
+		"runtime retired",
+		"generation", oldRuntime.Generation,
+	)
 }

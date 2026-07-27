@@ -29,12 +29,14 @@ The long-term objective is not to compete directly with established production p
 - Longest-prefix route matching with path-segment boundaries
 - Round-robin load balancing across configured upstreams
 - Active health probing for each backend with configurable interval and timeout
+- Zero-downtime configuration hot reload using atomic runtime replacement
+- Runtime generation management with reference-counted retirement
 - Automatic header injection for forwarded client information and request tracing
 - Optional TLS termination from YAML config
 - Structured request logging
 - Readiness endpoint (`/readyz`)
-- Graceful shutdown
-- Comprehensive unit tests
+- Graceful shutdown with request draining
+- Comprehensive unit, component, and integration tests
 - Automated benchmarking and statistical analysis framework
 
 The original Node.js/TypeScript prototype remains in the [node/](node/) directory as a historical reference.
@@ -45,9 +47,9 @@ The original Node.js/TypeScript prototype remains in the [node/](node/) director
 
 Torus is developed with a strong emphasis on engineering discipline.
 
-Major architectural decisions are documented through Architecture Decision Records (ADRs), while performance-sensitive changes are validated through reproducible benchmark reports.
+Major architectural decisions are documented through [Architecture Decision Records (ADRs)](./docs/engineering/decision-records/), while performance-sensitive changes are validated through reproducible [benchmark reports](./docs/benchmarking/reports/).
 
-This repository intentionally treats documentation, benchmarking, and implementation as equally important parts of the engineering process.
+This repository intentionally treats documentation, benchmarking, and implementation as equally important parts of the engineering process. In practice, that means the project ships with an extensive documentation suite covering architecture, design decisions, benchmarking methodology, reports, and datasets.
 
 ---
 
@@ -55,39 +57,31 @@ This repository intentionally treats documentation, benchmarking, and implementa
 
 ```
                 Client
-
                    │
-
                    ▼
 
              net/http Server
-
                    │
+                   ▼
 
+          Runtime (atomic.Pointer)
+                   │
                    ▼
 
            Longest Prefix Router
-
                    │
-
                    ▼
 
               Service Layer
-
                    │
-
                    ▼
 
          Round-Robin Load Balancer
-
                    │
-
                    ▼
 
           httputil.ReverseProxy
-
                    │
-
                    ▼
 
             Upstream Backend
@@ -128,9 +122,9 @@ docs/
 
 ---
 
-## [Engineering Documentation](/docs)
+## Engineering Documentation
 
-Torus maintains engineering documentation beyond source code.
+Torus maintains substantial engineering documentation beyond the source code.
 
 ```
 docs/
@@ -149,7 +143,7 @@ docs/
     └── architecture decision records
 ```
 
-Architecture Decision Records (ADRs) document major architectural decisions together with their rationale and consequences.
+The documentation set is intended to make the system easy to understand, evaluate, and extend. Architecture Decision Records (ADRs) document major architectural decisions together with their rationale and consequences, while the benchmarking docs capture methodology, tooling, and results.
 
 ---
 
@@ -177,10 +171,10 @@ go build -o torus ./cmd/torus
 
 ### 3. Configure
 
-The repository includes two sample configuration files:
+The repository includes sample configuration files in [configs/](configs/):
 
-- `torus-http.yaml` for an HTTP-only proxy
-- `torus-https.yaml` for TLS termination
+- [configs/torus-http.yaml](configs/torus-http.yaml) for an HTTP-only proxy
+- [configs/torus-https.yaml](configs/torus-https.yaml) for TLS termination
 
 A minimal HTTP example looks like this:
 
@@ -215,7 +209,7 @@ tls:
 When starting the proxy, pass the config file with `-config` if you are not using the default file name:
 
 ```bash
-./torus -config torus-http.yaml
+./torus -config configs/torus-http.yaml
 ```
 
 ### 4. Run the proxy
@@ -270,11 +264,16 @@ go test -race ./...
 
 Current test coverage includes:
 
-- routing
-- load balancing
-- backend health
-- proxy behaviour
-- graceful error handling
+- Configuration parsing and validation
+- Longest-prefix routing
+- Round-robin load balancing
+- Backend health management
+- Reverse proxy request forwarding
+- Runtime hot reload
+- Concurrent runtime replacement
+- Graceful shutdown and request draining
+
+Integration tests exercise the complete production startup path, runtime reload pipeline, and graceful shutdown behavior. All tests are regularly executed with Go's race detector.
 
 ---
 
@@ -282,9 +281,7 @@ Current test coverage includes:
 
 Planned work includes:
 
-- Hot configuration reload
 - Prometheus metrics
-- Comparative benchmarking
 - Allocation reduction
 - Allocation-free HTTP parsing
 - Advanced networking optimizations
@@ -301,15 +298,18 @@ torus-proxy/
 │       └── main.go
 ├── internal/
 │   ├── config/
+│   ├── configwatcher/
 │   ├── health/
 │   ├── loadbalancer/
 │   ├── middleware/
 │   ├── proxy/
+│   ├── reload/
 │   ├── routing/
+│   ├── runtime/
 │   ├── service/
 │   ├── transport/
 │   └── upstream/
-|
+├── integration/          # Integration tests
 ├── node/                 # Reference Node.js/TypeScript implementation
 ├── docs/
 |   ├── benchmarking/
@@ -326,9 +326,9 @@ torus-proxy/
 
 | Document | Description |
 |----------|-------------|
-| [`docs/benchmarking/`](./docs/benchmarking/) | Benchmark reports, methodology, tooling and statistical framework |
-| [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture |
-| [`docs/engineering/decision-records/`](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) |
+| [docs/benchmarking](./docs/benchmarking/) | Benchmark reports, methodology, tooling, and statistical framework |
+| [docs/engineering/ARCHITECTURE.md](./docs/engineering/ARCHITECTURE.md) | System architecture |
+| [docs/engineering/decision-records](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) |
 
 ---
 

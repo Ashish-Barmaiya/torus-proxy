@@ -4,17 +4,13 @@ import (
 	"context"
 	"flag"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-	"torus-proxy/internal/config"
-	"torus-proxy/internal/health"
+	"torus-proxy/internal/configwatcher"
 	"torus-proxy/internal/proxy"
-	"torus-proxy/internal/routing"
-	"torus-proxy/internal/service"
-	"torus-proxy/internal/upstream"
+	"torus-proxy/internal/reload"
 )
 
 func main() {
@@ -30,79 +26,53 @@ func main() {
 	)
 	flag.Parse()
 
-	// Load configuration
-	cfg, err := config.LoadConfig(*configPath)
+	// Build runtime manager
+	manager := reload.NewManager(
+		*configPath,
+		logger,
+	)
+
+	// Build initial runtime
+	rt, err := manager.BuildInitialRuntime()
 	if err != nil {
-		logger.Error("failed to load configuration", "error", err)
+		logger.Error("failed to build initial runtime", "error", err)
 		os.Exit(1)
 	}
 
-	// Health check
-	healthClient := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background()) // root context for entire proxy
+	rootCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	router := routing.NewRouter()
-
-	for _, rConfig := range cfg.Routes {
-		var backends []*upstream.Backend
-
-		for _, upURL := range rConfig.Upstreams {
-			b, err := upstream.NewBackend(upURL)
-			if err != nil {
-				logger.Error("failed to create backend", "url", upURL, "error", err)
-				os.Exit(1)
-			}
-			backends = append(backends, b)
-
-			checker := &health.HTTPChecker{
-				URL:    b.URL,
-				Client: healthClient,
-				Path:   cfg.HealthCheck.Path,
-			}
-
-			backend := b
-			health.StartProber(
-				ctx,
-				checker,
-				cfg.HealthCheck.Interval(),
-				cfg.HealthCheck.Timeout(),
-				func() { backend.SetHealthy(true) },
-				func() { backend.SetHealthy(false) },
-				logger,
-			)
-		}
-
-		svc := service.NewService(backends)
-		router.AddRoute(rConfig.Path, svc)
-	}
-
-	// Load TLS configuration if provided
-	tlsCfg, err := cfg.Tls.LoadTlsConfig()
-	if err != nil {
-		logger.Error("failed to load TLS config", "error", err)
-		os.Exit(1)
-	}
-
-	logger.Info("TLS config loaded", "tlsCfg", tlsCfg != nil)
-
 	// Start proxy
-	server := proxy.NewServer(router, logger, tlsCfg)
+	server := proxy.NewServer(rt, logger)
+	manager.SetServer(server)
 
 	go func() {
-		logger.Info("Torus is running", "addr", cfg.Server.Addr)
-		if err := server.Start(cfg.Server.Addr); err != nil {
+		logger.Info("Torus is running", "addr", rt.Addr)
+		if err := server.Start(rt.Addr); err != nil {
 			logger.Error("server stopped", "error", err)
 			cancel()
 			os.Exit(1)
 		}
 	}()
 
+	// Create and start config watcher
+	watcher := configwatcher.New(
+		*configPath,
+		logger,
+		manager,
+	)
+
+	go func() {
+		if err := watcher.Start(rootCtx); err != nil {
+			logger.Error(
+				"configuration watcher stopped",
+				"error", err,
+			)
+		}
+	}()
+
 	// This ctx is cancelled on SIGINT or SIGTERM
-	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	signalCtx, stop := signal.NotifyContext(rootCtx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	<-signalCtx.Done() // Wait for shutdown signal
