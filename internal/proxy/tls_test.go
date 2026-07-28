@@ -41,7 +41,6 @@ func TestTLSIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.Proxy.Transport.(*http.Transport).ResponseHeaderTimeout = 10 * time.Second
 
 	baseCtx, forceCancel := context.WithCancel(context.Background())
 	svc := service.NewService([]*upstream.Backend{b})

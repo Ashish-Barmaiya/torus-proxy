@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"sync/atomic"
 	"time"
+	"torus-proxy/internal/observability"
 
 	"github.com/google/uuid"
 )
@@ -26,6 +27,7 @@ func (b *Backend) IsHealthy() bool {
 // SetHealthy updates the health status
 func (b *Backend) SetHealthy(val bool) {
 	b.healthy.Store(val)
+	observability.SetBackendHealth(b.URL, val)
 }
 
 // This creates new backend
@@ -91,7 +93,10 @@ func NewBackend(targetUrl string) (*Backend, error) {
 		pr.Out.Header.Set("X-Request-ID", reqID)
 	}
 
-	proxy.Transport = customTransport
+	proxy.Transport = newInstrumentedTransport(
+		customTransport,
+		targetUrl,
+	)
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		log.Printf("proxy error: %v", err)
@@ -102,6 +107,6 @@ func NewBackend(targetUrl string) (*Backend, error) {
 		URL:   targetUrl,
 		Proxy: proxy,
 	}
-	b.healthy.Store(true)
+	b.SetHealthy(true)
 	return b, nil
 }

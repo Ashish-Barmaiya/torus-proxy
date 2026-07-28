@@ -29,8 +29,6 @@ func TestGracefulShutdown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	b.Proxy.Transport.(*http.Transport).ResponseHeaderTimeout = 10 * time.Second
-
 	svc := service.NewService([]*upstream.Backend{b})
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)

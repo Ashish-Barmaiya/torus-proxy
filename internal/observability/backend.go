@@ -16,7 +16,6 @@ var backendMetrics = struct {
 			Help:      "Total number of requests forwarded to backend servers.",
 		},
 		[]string{
-			"service",
 			"backend",
 		},
 	),
@@ -44,7 +43,6 @@ var backendMetrics = struct {
 			},
 		},
 		[]string{
-			"service",
 			"backend",
 		},
 	),
@@ -57,7 +55,6 @@ var backendMetrics = struct {
 			Help:      "Total number of backend request failures.",
 		},
 		[]string{
-			"service",
 			"backend",
 		},
 	),
@@ -70,7 +67,6 @@ var backendMetrics = struct {
 			Help:      "Current backend health status (1 = healthy, 0 = unhealthy).",
 		},
 		[]string{
-			"service",
 			"backend",
 		},
 	),

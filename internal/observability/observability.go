@@ -37,39 +37,38 @@ func TrackInflight() func() {
 }
 
 // RecordBackendRequest increments the backend request counter
-func RecordBackendRequest(service, backend string) {
+func RecordBackendRequest(backend string) {
 	backendMetrics.requestsTotal.
-		WithLabelValues(service, backend).
+		WithLabelValues(backend).
 		Inc()
 }
 
 // ObserveBackendRequestDuration records backend latency
 func ObserveBackendRequestDuration(
-	service,
 	backend string,
 	duration time.Duration,
 ) {
 	backendMetrics.requestDuration.
-		WithLabelValues(service, backend).
+		WithLabelValues(backend).
 		Observe(duration.Seconds())
 }
 
 // RecordBackendError increments the backend error counter
-func RecordBackendError(service, backend string) {
+func RecordBackendError(backend string) {
 	backendMetrics.errorsTotal.
-		WithLabelValues(service, backend).
+		WithLabelValues(backend).
 		Inc()
 }
 
 // SetBackendHealth updates the backend health gauge
-func SetBackendHealth(service, backend string, healthy bool) {
+func SetBackendHealth(backend string, healthy bool) {
 	value := 0.0
 	if healthy {
 		value = 1.0
 	}
 
 	backendMetrics.up.
-		WithLabelValues(service, backend).
+		WithLabelValues(backend).
 		Set(value)
 }
 
