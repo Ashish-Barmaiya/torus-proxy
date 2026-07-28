@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 	"torus-proxy/internal/middleware"
+	"torus-proxy/internal/observability"
 	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/transport"
 )
@@ -39,6 +40,14 @@ func NewServer(rt *runtime.Runtime, logger *slog.Logger) *Server {
 
 // The HTTP Handler function
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	done := observability.TrackInflight()
+	defer done()
+
+	rec := middleware.NewStatusRecorder(w)
+	w = rec
+
 	// Acquire a runtime context for this request
 	// RWMutex prevents race window between load() and acquire() operation
 	s.runtimeMu.RLock()
@@ -49,7 +58,22 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	defer rt.Release() // Release the runtime context when the request is done
 
 	// find the correct service using routing logic
-	svc := rt.Router.Route(r.URL.Path)
+	route, svc := rt.Router.Route(r.URL.Path)
+
+	defer func() {
+		observability.RecordHTTPRequest(
+			r.Method,
+			route,
+			rec.Status(),
+		)
+
+		observability.ObserveHTTPRequestDuration(
+			r.Method,
+			route,
+			time.Since(start),
+		)
+	}()
+
 	if svc == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
@@ -82,6 +106,7 @@ func (s *Server) WaitStarted() string {
 func (s *Server) Start(addr string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/", s.Handler())
+	mux.Handle("/metrics", observability.Handler())
 
 	// Readiness endpoint - used by Kubernetes to check if the server is ready to receive traffic
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {

@@ -5,17 +5,24 @@ import (
 	"time"
 )
 
+func normalizeRoute(route string) string {
+	if route == "" {
+		return "unmatched"
+	}
+	return route
+}
+
 // RecordHTTPRequest increments the total HTTP request counter
 func RecordHTTPRequest(method, route string, status int) {
 	httpMetrics.requestsTotal.
-		WithLabelValues(method, route, strconv.Itoa(status)).
+		WithLabelValues(method, normalizeRoute(route), strconv.Itoa(status)).
 		Inc()
 }
 
 // ObserveHTTPRequestDuration records the end-to-end request latency
 func ObserveHTTPRequestDuration(method, route string, duration time.Duration) {
 	httpMetrics.requestDuration.
-		WithLabelValues(method, route).
+		WithLabelValues(method, normalizeRoute(route)).
 		Observe(duration.Seconds())
 }
 
