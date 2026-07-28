@@ -53,6 +53,7 @@ func (m *Manager) Reload() error {
 	}
 	rt, err := m.buildRuntime()
 	if err != nil {
+		observability.RecordRuntimeReload(false)
 		return err
 	}
 

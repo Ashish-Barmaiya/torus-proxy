@@ -10,6 +10,10 @@ import (
 
 var nextGeneration atomic.Uint64
 
+func ResetGenerationForTesting() {
+	nextGeneration.Store(0)
+}
+
 type Runtime struct {
 	Generation uint64
 	Addr       string
