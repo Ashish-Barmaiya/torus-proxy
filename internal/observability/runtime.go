@@ -12,7 +12,7 @@ var runtimeMetrics = struct {
 			Namespace: "torus",
 			Subsystem: "runtime",
 			Name:      "reloads_total",
-			Help:      "Total number of runtime reload attempts.",
+			Help:      "Total number of runtime reload attempts partitioned by result.",
 		},
 		[]string{
 			"result",

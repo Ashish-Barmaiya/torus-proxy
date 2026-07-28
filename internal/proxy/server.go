@@ -214,6 +214,9 @@ func (s *Server) Reload(newRuntime *runtime.Runtime) {
 
 	s.runtimeMu.Unlock()
 
+	observability.SetRuntimeGeneration(newRuntime.Generation)
+	observability.RecordRuntimeReload(true)
+
 	s.logger.Info(
 		"runtime reloaded",
 		"old_generation", oldRuntime.Generation,

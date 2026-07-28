@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 	"torus-proxy/internal/configwatcher"
+	"torus-proxy/internal/observability"
 	"torus-proxy/internal/proxy"
 	"torus-proxy/internal/reload"
 )
@@ -38,6 +39,8 @@ func main() {
 		logger.Error("failed to build initial runtime", "error", err)
 		os.Exit(1)
 	}
+
+	observability.SetRuntimeGeneration(rt.Generation)
 
 	rootCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()

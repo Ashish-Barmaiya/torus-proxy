@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 	"torus-proxy/internal/config"
 	"torus-proxy/internal/health"
+	"torus-proxy/internal/observability"
 	"torus-proxy/internal/routing"
 	"torus-proxy/internal/service"
 	"torus-proxy/internal/upstream"
 )
 
 func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
+	start := time.Now()
+
 	router := routing.NewRouter()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -63,6 +67,10 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 	logger.Info("TLS config loaded", "enabled", tlsCfg != nil)
 
 	generation := nextGeneration.Add(1)
+
+	observability.ObserveRuntimeBuildDuration(
+		time.Since(start),
+	)
 
 	return NewRuntime(generation, cfg.Server.Addr, router, tlsCfg, cancel), nil
 }
