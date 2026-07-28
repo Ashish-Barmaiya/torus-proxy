@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"torus-proxy/internal/config"
+	"torus-proxy/internal/observability"
 	"torus-proxy/internal/proxy"
 	"torus-proxy/internal/runtime"
 )
@@ -36,7 +37,14 @@ func (m *Manager) buildRuntime() (*runtime.Runtime, error) {
 }
 
 func (m *Manager) BuildInitialRuntime() (*runtime.Runtime, error) {
-	return m.buildRuntime()
+	rt, err := m.buildRuntime()
+	if err != nil {
+		return nil, err
+	}
+
+	observability.SetRuntimeGeneration(rt.Generation)
+
+	return rt, nil
 }
 
 func (m *Manager) Reload() error {
