@@ -20,10 +20,18 @@ type Runtime struct {
 	Router     *routing.Router
 	TLSConfig  *tls.Config
 
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	cancel    context.CancelFunc
+	requestWG sync.WaitGroup
+	workerWG  sync.WaitGroup
 }
 
+// Runtime owns:
+//   - background workers
+//   - health probe lifecycle
+//   - in-flight request accounting
+//
+// Stop() cancels workers and waits until all workers and requests
+// associated with this runtime have completed before returning.
 func NewRuntime(generation uint64, addr string, router *routing.Router, tlsConfig *tls.Config, cancel context.CancelFunc) *Runtime {
 	return &Runtime{
 		Generation: generation,
@@ -34,12 +42,20 @@ func NewRuntime(generation uint64, addr string, router *routing.Router, tlsConfi
 	}
 }
 
-func (r *Runtime) Acquire() {
-	r.wg.Add(1)
+func (r *Runtime) AcquireRequest() {
+	r.requestWG.Add(1)
 }
 
-func (r *Runtime) Release() {
-	r.wg.Done()
+func (r *Runtime) ReleaseRequest() {
+	r.requestWG.Done()
+}
+
+func (r *Runtime) AddWorker() {
+	r.workerWG.Add(1)
+}
+
+func (r *Runtime) DoneWorker() {
+	r.workerWG.Done()
 }
 
 func (r *Runtime) Stop() {
@@ -47,5 +63,6 @@ func (r *Runtime) Stop() {
 		r.cancel()
 	}
 
-	r.wg.Wait()
+	r.requestWG.Wait()
+	r.workerWG.Wait()
 }

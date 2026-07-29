@@ -150,6 +150,12 @@ func TestProxyFlow_Concurrency(t *testing.T) {
 
 	proxy := setupProxy(t, []string{backend.URL})
 
+	defer func() {
+		if err := proxy.Shutdown(5 * time.Second); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
 	var wg sync.WaitGroup
 
 	for i := 0; i < 50; i++ {

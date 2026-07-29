@@ -53,9 +53,9 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	s.runtimeMu.RLock()
 	rt := s.runtime.Load()
 
-	rt.Acquire()
+	rt.AcquireRequest()
 	s.runtimeMu.RUnlock()
-	defer rt.Release() // Release the runtime context when the request is done
+	defer rt.ReleaseRequest() // Release the runtime context when the request is done
 
 	// find the correct service using routing logic
 	route, svc := rt.Router.Route(r.URL.Path)
@@ -180,6 +180,12 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 	if s.srv == nil {
 		return nil
 	}
+
+	defer func() {
+		if rt := s.runtime.Load(); rt != nil {
+			rt.Stop()
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

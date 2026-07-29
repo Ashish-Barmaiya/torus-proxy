@@ -23,6 +23,18 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 
 	healthClient := &http.Client{}
 
+	tlsCfg, err := cfg.Tls.LoadTlsConfig()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("load TLS config: %w", err)
+	}
+
+	logger.Info("TLS config loaded", "enabled", tlsCfg != nil)
+
+	generation := nextGeneration.Add(1)
+
+	rt := NewRuntime(generation, cfg.Server.Addr, router, tlsCfg, cancel)
+
 	for _, rConfig := range cfg.Routes {
 		var backends []*upstream.Backend
 
@@ -45,6 +57,7 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 
 			health.StartProber(
 				ctx,
+				rt,
 				checker,
 				cfg.HealthCheck.Interval(),
 				cfg.HealthCheck.Timeout(),
@@ -58,19 +71,9 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 		router.AddRoute(rConfig.Path, svc)
 	}
 
-	tlsCfg, err := cfg.Tls.LoadTlsConfig()
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("load TLS config: %w", err)
-	}
-
-	logger.Info("TLS config loaded", "enabled", tlsCfg != nil)
-
-	generation := nextGeneration.Add(1)
-
 	observability.ObserveRuntimeBuildDuration(
 		time.Since(start),
 	)
 
-	return NewRuntime(generation, cfg.Server.Addr, router, tlsCfg, cancel), nil
+	return rt, nil
 }

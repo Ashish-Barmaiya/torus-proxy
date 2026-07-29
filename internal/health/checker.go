@@ -12,9 +12,15 @@ type Checker interface {
 	Target() string
 }
 
+type WorkerGroup interface {
+	AddWorker()
+	DoneWorker()
+}
+
 // Prober runs a checker periodically
 func StartProber(
 	ctx context.Context,
+	workers WorkerGroup,
 	checker Checker,
 	interval time.Duration,
 	timeout time.Duration,
@@ -22,7 +28,13 @@ func StartProber(
 	onUnhealthy func(),
 	logger *slog.Logger,
 ) {
+	// Register this goroutine
+	workers.AddWorker()
+
 	go func() {
+		// Unregister this goroutine
+		defer workers.DoneWorker()
+
 		// Primary recovery
 		defer func() {
 			if r := recover(); r != nil {
@@ -35,8 +47,17 @@ func StartProber(
 				}()
 
 				log.Printf("[HEALTH CRASH ALERT] Worker panicked: %v. Restarting worker...", r)
-				time.Sleep(2 * time.Second)
-				StartProber(ctx, checker, interval, timeout, onHealthy, onUnhealthy, logger) // restrat the prober
+				select {
+				case <-time.After(2 * time.Second):
+					// Don't restart if this runtime has already been shut down.
+					if ctx.Err() == nil {
+						StartProber(ctx, workers, checker, interval, timeout, onHealthy, onUnhealthy, logger) // restrat the prober
+					}
+				case <-ctx.Done():
+					// Runtime is shutting down; do not restart.
+					return
+				}
+
 			}
 		}()
 
