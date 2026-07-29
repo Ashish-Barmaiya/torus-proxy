@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// TestMetricsEndpoint verifies that the proxy exposes the expected metrics
+// endpoint help text.
+//
+// Flow:
+//  1. Start a test backend and proxy.
+//  2. Request the /metrics endpoint.
+//  3. Verify the output contains the expected help text for core metrics.
+//
+// This ensures the observability surface is registered and exported correctly.
 func TestMetricsEndpoint(t *testing.T) {
 	resetTestState(t)
 
@@ -46,6 +55,16 @@ func TestMetricsEndpoint(t *testing.T) {
 	}
 }
 
+// TestRequestMetrics verifies that request and backend metrics are emitted for
+// proxied traffic.
+//
+// Flow:
+//  1. Start a test backend and proxy.
+//  2. Issue several requests through the proxy.
+//  3. Read /metrics and verify the request-count and duration metrics are
+//     present.
+//
+// This ensures request-level observability is updated for each proxied call.
 func TestRequestMetrics(t *testing.T) {
 	resetTestState(t)
 
@@ -99,6 +118,18 @@ func TestRequestMetrics(t *testing.T) {
 	}
 }
 
+// TestRuntimeMetrics verifies that runtime generation and reload metrics are
+// updated after successful and failed reloads.
+//
+// Flow:
+//  1. Start a proxy with a valid configuration.
+//  2. Verify the initial runtime metrics are emitted.
+//  3. Trigger a successful reload and verify the generation and reload-count
+//     metrics advance.
+//  4. Trigger a failed reload and verify the failure counter increments without
+//     changing the generation.
+//
+// This validates the runtime observability lifecycle during config changes.
 func TestRuntimeMetrics(t *testing.T) {
 	resetTestState(t)
 
@@ -185,4 +216,48 @@ func TestRuntimeMetrics(t *testing.T) {
 			t.Fatalf("expected metrics output to contain %q", metric)
 		}
 	}
+}
+
+// TestBackendHealthMetrics verifies that backend health transitions are
+// reflected in the exported health metrics.
+//
+// Flow:
+//  1. Start a proxy with a health-checking backend.
+//  2. Wait until the backend is marked healthy.
+//  3. Simulate backend failure.
+//  4. Verify the health metric transitions to unhealthy.
+//
+// This ensures health probes are surfaced through the observability metrics.
+func TestBackendHealthMetrics(t *testing.T) {
+	resetTestState(t)
+
+	backend := newBackend(t, "healthy")
+	defer backend.Close()
+
+	configPath := newTempConfig(t)
+
+	writeHealthConfig(
+		t,
+		configPath,
+		"127.0.0.1:0",
+		100,
+		100,
+		backend.URL,
+	)
+
+	_, server, _, baseURL := startProxy(t, configPath)
+	defer func() {
+		if err := server.Shutdown(5 * time.Second); err != nil {
+			t.Fatalf("shutdown proxy: %v", err)
+		}
+	}()
+
+	// Wait until the first successful health probe updates the metric
+	waitForBackendHealth(t, baseURL, backend.URL, true)
+
+	// Simulate backend failure.
+	backend.Close()
+
+	// Wait until the health checker marks the backend unhealthy
+	waitForBackendHealth(t, baseURL, backend.URL, false)
 }

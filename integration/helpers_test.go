@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 	"torus-proxy/internal/observability"
@@ -203,9 +204,99 @@ func startProxy(
 	return manager, server, addr, baseURL
 }
 
+// resetTestState resets observability and runtime state between tests.
+//
+// It clears the test-specific observability registry and runtime generation
+// counters so each integration test starts from a clean slate.
 func resetTestState(t *testing.T) {
 	t.Helper()
 
 	observability.ResetForTesting()
 	runtimepkg.ResetGenerationForTesting()
+}
+
+// writeHealthConfig generates a Torus configuration file with a custom health
+// check interval and timeout.
+//
+// It is intended for integration tests that need faster health state
+// transitions than the default configuration.
+func writeHealthConfig(
+	t *testing.T,
+	path, listenAddr string,
+	intervalMS, timeoutMS int,
+	upstreams ...string,
+) {
+	t.Helper()
+
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create config: %v", err)
+	}
+	defer file.Close()
+
+	_, _ = fmt.Fprintln(file, "apiVersion: v1")
+	_, _ = fmt.Fprintln(file)
+	_, _ = fmt.Fprintln(file, "server:")
+	_, _ = fmt.Fprintf(file, "  addr: %q\n", listenAddr)
+	_, _ = fmt.Fprintln(file)
+	_, _ = fmt.Fprintln(file, "health:")
+	_, _ = fmt.Fprintf(file, "  interval_ms: %d\n", intervalMS)
+	_, _ = fmt.Fprintf(file, "  timeout_ms: %d\n", timeoutMS)
+	_, _ = fmt.Fprintln(file, "  path: /health")
+	_, _ = fmt.Fprintln(file)
+	_, _ = fmt.Fprintln(file, "routes:")
+	_, _ = fmt.Fprintln(file, "  - path: /api")
+	_, _ = fmt.Fprintln(file, "    upstream:")
+
+	for _, u := range upstreams {
+		_, _ = fmt.Fprintf(file, "      - %q\n", u)
+	}
+
+	if err := file.Sync(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// waitForBackendHealth waits until the backend health metric reaches the
+// expected value.
+//
+// It polls the proxy metrics endpoint until the backend's health status matches
+// the requested state or the timeout expires.
+func waitForBackendHealth(
+	t *testing.T,
+	baseURL string,
+	backendURL string,
+	expected bool,
+) {
+	t.Helper()
+
+	expectedValue := "0"
+	if expected {
+		expectedValue = "1"
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+
+	for time.Now().Before(deadline) {
+		metrics := httpGet(t, baseURL+"/metrics")
+
+		if strings.Contains(
+			metrics,
+			fmt.Sprintf(
+				`torus_backend_up{backend="%s"} %s`,
+				backendURL,
+				expectedValue,
+			),
+		) {
+			return
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Fatalf(
+		"backend health never became %s for %q",
+		expectedValue,
+		backendURL,
+	)
 }
