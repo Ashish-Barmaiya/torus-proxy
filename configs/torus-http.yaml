@@ -11,5 +11,5 @@ health:
 routes:
   - path: /api
     upstream:
-      - "http://localhost:3001"
-      - "http://localhost:3002"
+      - "http://backend-1:3001"
+      - "http://backend-2:3002"

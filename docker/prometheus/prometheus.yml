@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: torus
+
+    static_configs:
+      - targets:
+          - torus:8080
