@@ -4,10 +4,12 @@
 
 **A Layer 7 Reverse Proxy & Edge API Gateway built in Go.**
 
-High-performance traffic routing, health-aware load balancing, and production-oriented infrastructure engineering built with Go's standard library.
+High-performance traffic routing, health-aware load balancing, zero-downtime runtime reloading, and built-in observability implemented using Go's standard library.
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Release](https://img.shields.io/github/v/release/Ashish-Barmaiya/torus-proxy)](https://github.com/Ashish-Barmaiya/torus-proxy/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go CI](https://github.com/Ashish-Barmaiya/torus-proxy/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Ashish-Barmaiya/torus-proxy/actions/workflows/ci.yml)
 
 </div>
 
@@ -19,135 +21,43 @@ Torus is a Layer 7 reverse proxy and edge API gateway written entirely in Go.
 
 The project began as a Node.js implementation before being rewritten in Go to explore systems programming, networking internals, and high-performance infrastructure software.
 
-The long-term objective is not to compete directly with established production proxies, but to build a reverse proxy as a systems engineering project—implementing, benchmarking, and documenting the techniques used in modern networking infrastructure.
+The long-term objective is not to compete directly with established production proxies, but to build a reverse proxy as a systems engineering project — implementing, benchmarking, and documenting the techniques used in modern networking infrastructure.
 
 ---
 
 ## Current Features
 
-- Reverse proxying with Go's standard-library `net/http/httputil.ReverseProxy`
-- Longest-prefix route matching with path-segment boundaries
-- Round-robin load balancing across configured upstreams
-- Active health probing for each backend with configurable interval and timeout
-- Zero-downtime configuration hot reload using atomic runtime replacement
-- Runtime generation management with reference-counted retirement
-- Automatic header injection for forwarded client information and request tracing
-- Optional TLS termination from YAML config
+### Traffic Management
+
+- Layer 7 reverse proxy built on Go's standard library (`net/http/httputil.ReverseProxy`)
+- Longest-prefix routing with path-segment boundary matching
+- Round-robin load balancing across healthy upstreams
+- Active backend health checking
+- Automatic forwarding and request tracing headers
+
+### Runtime
+
+- Zero-downtime configuration hot reload
+- Atomic runtime replacement with reference-counted retirement
+- Graceful shutdown with request draining
+
+### Security & Observability
+
+- Optional TLS termination from YAML configuration
+- Prometheus metrics for HTTP traffic, upstreams, and runtime state
 - Structured request logging
 - Readiness endpoint (`/readyz`)
-- Graceful shutdown with request draining
+
+### Engineering
+
 - Comprehensive unit, component, and integration tests
-- Automated benchmarking and statistical analysis framework
+- Automated benchmarking, statistical analysis, and reproducible benchmark reports
 
-The original Node.js/TypeScript prototype remains in the [node/](node/) directory as a historical reference.
-
----
-
-## Engineering Principles
-
-Torus is developed with a strong emphasis on engineering discipline.
-
-Major architectural decisions are documented through [Architecture Decision Records (ADRs)](./docs/engineering/decision-records/), while performance-sensitive changes are validated through reproducible [benchmark reports](./docs/benchmarking/reports/).
-
-This repository intentionally treats documentation, benchmarking, and implementation as equally important parts of the engineering process. In practice, that means the project ships with an extensive documentation suite covering architecture, design decisions, benchmarking methodology, reports, and datasets.
+> The original Node.js/TypeScript implementation is retained in the [`node/`](node/) directory as a historical reference.
 
 ---
 
-## Architecture
-
-```
-                Client
-                   │
-                   ▼
-
-             net/http Server
-                   │
-                   ▼
-
-          Runtime (atomic.Pointer)
-                   │
-                   ▼
-
-           Longest Prefix Router
-                   │
-                   ▼
-
-              Service Layer
-                   │
-                   ▼
-
-         Round-Robin Load Balancer
-                   │
-                   ▼
-
-          httputil.ReverseProxy
-                   │
-                   ▼
-
-            Upstream Backend
-```
-
----
-
-## Performance & Benchmarking
-
-Performance engineering is a core part of Torus.
-
-Every significant architectural change is evaluated using the project's automated benchmarking framework before being documented in a benchmark report.
-
-The benchmarking framework includes:
-
-- Automated benchmark execution
-- Statistical analysis
-- Automated report generation
-- Standardized benchmark methodology
-- Hardware profiles
-- Environment profiles
-- Software baselines
-- Historical benchmark reports
-
-Published benchmark datasets are distributed separately as GitHub Release assets to keep the repository lightweight while preserving reproducibility.
-
-Current benchmarks reports:
-
-- [**Benchmark-001** — Node.js to Go Performance Evaluation](/docs/benchmarking/reports/Benchmark-001-nodejs-to-go-performance-evaluation.md)
-- [**Benchmark-002** — HTTP vs HTTPS Performance Evaluation](./docs/benchmarking/reports/Benchmark-002-http-vs-https.md)
-
-See:
-
-```
-docs/
-└── benchmarking/
-```
-
----
-
-## Engineering Documentation
-
-Torus maintains substantial engineering documentation beyond the source code.
-
-```
-docs/
-
-├── benchmarking/
-│   ├── benchmarking standard
-│   ├── methodology
-│   ├── statistics
-│   ├── benchmark automation
-│   ├── benchmark reports
-│   └── benchmark datasets
-│
-└── engineering/
-    ├── architecture
-    ├── design notes
-    └── architecture decision records
-```
-
-The documentation set is intended to make the system easy to understand, evaluate, and extend. Architecture Decision Records (ADRs) document major architectural decisions together with their rationale and consequences, while the benchmarking docs capture methodology, tooling, and results.
-
----
-
-## Quick start
+## Quick Start
 
 ### Prerequisites
 
@@ -169,6 +79,18 @@ cd torus-proxy
 go build -o torus ./cmd/torus
 ```
 
+For local testing, a simple mock backend is included:
+
+```bash
+go run ./cmd/mock-backend 3001
+```
+
+In a second terminal:
+
+```bash
+go run ./cmd/mock-backend 3002
+```
+
 ### 3. Configure
 
 The repository includes sample configuration files in [configs/](configs/):
@@ -179,6 +101,8 @@ The repository includes sample configuration files in [configs/](configs/):
 A minimal HTTP example looks like this:
 
 ```yaml
+apiVersion: v1
+
 server:
   addr: ":8080"
 
@@ -186,6 +110,9 @@ health:
   interval_ms: 5000
   timeout_ms: 2000
   path: /health
+
+observability:
+  enabled: true # When enabled, Torus exposes Prometheus metrics at /metrics.
 
 routes:
   - path: /api
@@ -215,28 +142,131 @@ When starting the proxy, pass the config file with `-config` if you are not usin
 ### 4. Run the proxy
 
 ```bash
-./torus
+./torus -config configs/torus-http.yaml
 ```
 
 The proxy listens on the configured address and exposes:
 
-```bash
-/readyz
-```
+- `/readyz` — readiness endpoint
+- `/metrics` — Prometheus metrics (when observability is enabled)
 
-for readiness checks
+To launch the local observability stack with Prometheus and Grafana:
+
+```bash
+docker compose -f docker/compose.yml up -d
+```
 
 ---
 
-## Example behavior
+## Verify
 
 A request such as:
 
 ```bash
-curl http://localhost:8080/api/hello
-# or
-curl -k https://localhost:8443/api/hello
+curl http://localhost:8080/readyz
 ```
+
+```bash
+curl http://localhost:8080/api/hello
+```
+
+---
+
+## Architecture
+
+```
+                                                    +--------------------------------+
+                         Client                     |    Runtime Reload Pipeline     |
+                            │                       |                                |
+                            ▼                       |         Config Watcher         |
+                     net/http Server                |              │                 |
+                            │                       |              ▼                 |
+                            |                       |    Build New Runtime Snapshot  |
+                            |                       |              │                 |
+                            |                       |              ▼                 |
+                            |                       |      Atomic Pointer Swap       |
+                            |                       +--------------------------------+
+                            ▼                                       │
+              +---------------------------+   Swap Runtime Pointer  │
+              |   Atomic Runtime Pointer  | <───────────────────────+
+              +---------------------------+
+                            │
+                            ▼
+      +---------------------------------------+
+      |       Immutable Runtime Snapshot      |
+      |---------------------------------------+
+      |        │                   │          |
+      |        │                   │          |
+      |        ▼                   ▼          |
+      |     Router            Health State    |
+      |        │                   |          |
+      |        ▼                   ▼          |
+      |    Services           Health Workers  |
+      |        │                   |          |
+      |        ▼                   |          |
+      | Reverse Proxy              |          |
+      +---------------------------------------+
+               |                   |
+               |                   |
+               ▼                   |
+         Backend Pool <------------+
+
+  +—————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————+
+  |  ** Request Path                            ** Reload Path                            ** Key Properties                     |
+  |                                                                                                                             |
+  |  Client —> Server —> Runtime —>             Config change —> Build new rutime —>      * Zero-downtime configuration reloads |
+  |  Router —> Service —> Reverse Proxy —>      Atomic pointer swap —> New runtime        * Immutable runtime snapshots         |
+  |  Backend Pool                               serves subsequent requests                * Atomic Pointer swaps                |
+  |                                                                                       * Request isolation from reloads      |
+  |                                                                                       * Graceful shutdown                   |
+  |                                                                                                                             |
+  +—————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————+
+```
+
+---
+
+## Performance & Benchmarking
+
+Performance engineering is a core part of Torus.
+
+Every significant architectural change is evaluated using a standardized benchmarking framework before being documented in a published benchmark report.
+
+The benchmarking framework includes:
+
+- Automated benchmark execution
+- Statistical analysis and summary generation
+- Performance visualization
+- Automated draft report generation
+- Standardized benchmark methodology
+- Reproducible benchmark scenarios
+- Published benchmark datasets
+- Historical benchmark reports
+
+Each published benchmark includes a detailed engineering report, supporting visualizations, and a downloadable dataset distributed as a GitHub Release asset to preserve reproducibility while keeping the repository lightweight.
+
+### Published Benchmark Reports
+
+- [**Benchmark-001** — Node.js to Go Performance Evaluation](/docs/benchmarking/reports/Benchmark-001-nodejs-to-go-performance-evaluation.md)
+- [**Benchmark-002** — HTTP vs HTTPS Performance Evaluation](./docs/benchmarking/reports/Benchmark-002-http-vs-https.md)
+- [**Benchmark-003** — Observability Overhead Evaluation](./docs/benchmarking/reports/Benchmark-003-observability-overhead.md)
+
+Additional benchmarking methodology, tooling, and reports are available in [`docs/benchmarking/`](./docs/benchmarking/).
+
+---
+
+## Documentation
+
+Torus is accompanied by extensive engineering documentation covering architecture, benchmarking, and design decisions.
+
+| Documentation | Description |
+|--------------|-------------|
+| [`docs/benchmarking/`](./docs/benchmarking/) | Benchmark reports, methodology, automation framework, datasets, and statistical analysis |
+| [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture and runtime design |
+| [`docs/engineering/decision-records/`](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) documenting major engineering decisions |
+
+The documentation is maintained alongside the source code to ensure that architectural decisions, performance evaluations, and implementation details remain reproducible and easy to understand.s.
+
+---
 
 The request is:
 
@@ -248,87 +278,57 @@ The request is:
 
 ---
 
-## Testing
-
-Run the test suite with:
-
-```bash
-go test ./...
-```
-
-Race detector:
-
-```bash
-go test -race ./...
-```
-
-Current test coverage includes:
-
-- Configuration parsing and validation
-- Longest-prefix routing
-- Round-robin load balancing
-- Backend health management
-- Reverse proxy request forwarding
-- Runtime hot reload
-- Concurrent runtime replacement
-- Graceful shutdown and request draining
-
-Integration tests exercise the complete production startup path, runtime reload pipeline, and graceful shutdown behavior. All tests are regularly executed with Go's race detector.
-
----
-
-## Roadmap
-
-Planned work includes:
-
-- Prometheus metrics
-- Allocation reduction
-- Allocation-free HTTP parsing
-- Advanced networking optimizations
-- Kernel-assisted networking research
-
----
-
 ## Project layout
 
 ```text
 torus-proxy/
 ├── cmd/
-│   └── torus/
-│       └── main.go
-├── internal/
-│   ├── config/
-│   ├── configwatcher/
-│   ├── health/
-│   ├── loadbalancer/
-│   ├── middleware/
-│   ├── proxy/
-│   ├── reload/
-│   ├── routing/
-│   ├── runtime/
-│   ├── service/
-│   ├── transport/
-│   └── upstream/
-├── integration/          # Integration tests
-├── node/                 # Reference Node.js/TypeScript implementation
-├── docs/
-|   ├── benchmarking/
-│   └── engineering/
+│   ├── torus/
+│   │   └── main.go
+│   └── mock-backend/
 |
-├── torus.yaml
-├── mock_backend.go
-└── go.mod
+├── configs/             # sample YAML configs for HTTP and HTTPS
+├── docker/              # Prometheus and Grafana compose setup
+├── docs/                # architecture, ADRs, and benchmarking docs
+│   ├── benchmarking/          # Benchmarking framework and reports
+│   └── engineering/           # Architecture and ADRs
+|
+├── integration/         # integration tests for runtime, reload, shutdown, and observability
+├── internal/            # core proxy implementation
+├── node/                # reference Node.js/TypeScript implementation
+├── Dockerfile.mock
+├── dockerfile
+├── go.mod
+└── README.md
 ```
-
 ---
 
-## [Documentation](/docs/)
+## Testing
 
-| Document | Description |
-|----------|-------------|
-| [docs/benchmarking](./docs/benchmarking/) | Benchmark reports, methodology, tooling, and statistical framework |
-| [docs/engineering/ARCHITECTURE.md](./docs/engineering/ARCHITECTURE.md) | System architecture |
-| [docs/engineering/decision-records](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) |
+Run the complete test suite:
+
+```bash
+go test ./...
+```
+
+Run the test suite with Go's race detector:
+
+```bash
+go test -race ./...
+```
+
+The test suite includes unit, component, and integration tests covering:
+
+- Configuration parsing and validation
+- Longest-prefix route matching
+- Round-robin load balancing
+- Backend health management
+- Reverse proxy request forwarding
+- Runtime hot reload
+- Graceful shutdown
+- Prometheus metrics and observability
+
+Integration tests exercise the complete production startup path, request forwarding pipeline, runtime reload mechanism, observability surface, and graceful shutdown behaviour.
 
 ---
 
