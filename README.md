@@ -184,7 +184,7 @@ curl http://localhost:8080/api/hello
                             |                       |    Build New Runtime Snapshot  |
                             |                       |              │                 |
                             |                       |              ▼                 |
-                            |                       |      Atomic Pointer Swap       |
+                            |                       |         Atomic Pointer         |
                             |                       +--------------------------------+
                             ▼                                       │
               +---------------------------+   Swap Runtime Pointer  │
@@ -201,7 +201,7 @@ curl http://localhost:8080/api/hello
       |     Router            Health State    |
       |        │                   |          |
       |        ▼                   ▼          |
-      |    Services           Health Workers  |
+      |    Services          Health Workers   |
       |        │                   |          |
       |        ▼                   |          |
       | Reverse Proxy              |          |

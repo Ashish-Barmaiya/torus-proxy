@@ -473,11 +473,11 @@ The reduction in throughput is expected because each request performs additional
 asset
 ### Throughput Comparison
 > <img src="assets/Benchmark-002-observability-overhead/observability-disabled/wrk-throughput-boxplot.png" width="500" alt="Throughput Disabled" />
-
+>
 > **Figure 1: Throughput (observability disabled)**
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-enabled/wrk-throughput-boxplot.png" width="500" alt="Throughput Enabled" />
-
+>
 > **Figure 2: Throughput (observability enabled)**
 
 The throughput plots demonstrate that both benchmark scenarios remain stable across repeated executions while the observability-enabled configuration consistently achieves slightly lower throughput than the baseline.
@@ -501,11 +501,11 @@ The increase in average latency closely mirrors the reduction in throughput, ind
 #### wrk Latency Distribution
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-disabled/wrk-latency-boxplot.png" width="500" alt="Latency Distribution Disabled" />
-
+>
 > **Figure 3: Latency Distribution (observability disabled)**
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-enabled/wrk-latency-boxplot.png" width="500" alt="Latency Distribution Enabled" />
-
+>
 >**Figure 4: Latency Distribution (observability enabled)**
 
 The box plots show that both benchmark scenarios exhibit similar latency distributions under saturated load. Enabling observability results in a modest upward shift in median latency while preserving a comparable spread and overall distribution. No evidence of increased latency variability or abnormal outliers is observed.
@@ -526,12 +526,12 @@ Latency increased consistently across every reported percentile. However, the ab
 
 #### Latency Percentiles
 
-> <img src="assets/Benchmark-002-observability-overhead/observability-disabled/latency-percentiles.png" width="500" alt="Latency Percentiles Disabled />
-
+> <img src="assets/Benchmark-002-observability-overhead/observability-disabled/latency-percentiles.png" width="500" alt="Latency Percentiles Disabled" />
+>
 > **Figure 5: Latency Percentiles (observability disabled)**
 
-> <img src="assets/Benchmark-002-observability-overhead/observability-enabled/latency-percentiles.png" width="500" alt="Latency Percentiles Enabled />
-
+> <img src="assets/Benchmark-002-observability-overhead/observability-enabled/latency-percentiles.png" width="500" alt="Latency Percentiles Enabled" />
+>
 >**Figure 6: Latency Percentiles (observability enabled)**
 
 The percentile comparison demonstrates that enabling observability produces only a slight increase across the latency distribution. The p50, p95, and p99 percentiles remain close to the baseline configuration, indicating that instrumentation has only a modest effect on both typical and tail request latency.
@@ -539,11 +539,11 @@ The percentile comparison demonstrates that enabling observability produces only
 #### Latency Distribution
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-disabled/latency-histogram.png" width="500" alt="Latency Histogram Disabled" />
-
+>
 > **Figure 7: Latency Histogram (observability disabled)**
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-enabled/latency-histogram.png" width="500" alt="Latency Histogram Enabled" />
-
+>
 >**Figure 8: Latency Histogram (observability enabled)**
 
 The latency histogram shows nearly identical response-time distributions for both benchmark scenarios. Enabling observability causes only a slight rightward shift in the distribution without introducing additional peaks or a heavier tail. This indicates that the observed latency increase is uniform and predictable rather than being driven by a small number of slow requests.
@@ -596,11 +596,11 @@ Although CPU utilization increased, no abnormal scheduler behaviour or CPU satur
 ### CPU Utilization Over Time
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-disabled/wrk-cpu/cpu-timeseries.png" width="500" alt="CPU Timeseries Disabled" />
-
+>
 > **Figure 9: CPU Timeseries (observability disabled)**
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-enabled/wrk-cpu/cpu-timeseries.png" width="500" alt="CPU Timeseries Enabled" />
-
+>
 >**Figure 10: CPU Timeseries (observability enabled)**
 
 The CPU time-series illustrates stable processor utilization throughout the benchmark. Both benchmark scenarios follow similar execution patterns, while the observability-enabled configuration consistently exhibits slightly higher CPU utilization under sustained load.
@@ -608,11 +608,11 @@ The CPU time-series illustrates stable processor utilization throughout the benc
 ### CPU Utilization Distribution
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-disabled/wrk-cpu/cpu-distribution.png" width="500" alt="CPU Distribution Disabled" />
-
+>
 > **Figure 11: CPU Distribution (observability disabled)**
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-enabled/wrk-cpu/cpu-distribution.png" width="500" alt="CPU Distribution Enabled" />
-
+>
 >**Figure 12: CPU Distribution (observability enabled)**
 
 The CPU distribution further confirms that enabling observability shifts processor utilization upward by a small but consistent amount without introducing increased variability or unstable execution behaviour.
@@ -630,11 +630,11 @@ More importantly, memory usage remained bounded throughout all benchmark iterati
 ### Memory Utilization Over Time
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-disabled/wrk-cpu/memory-timeseries.png" width="500" alt="Memory Timeseries Disabled" />
-
+>
 > **Figure 13: Memory Timeseries (observability disabled)**
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-enabled/wrk-cpu/memory-timeseries.png" width="500" alt="Memory Timeseries Enabled" />
-
+>
 >**Figure 14: Memory Timeseries (observability enabled)**
 
 The memory time-series demonstrates stable resident memory usage throughout benchmark execution. Although memory usage fluctuates naturally during request processing, both benchmark scenarios remain bounded and exhibit no evidence of progressive memory growth.
@@ -642,11 +642,11 @@ The memory time-series demonstrates stable resident memory usage throughout benc
 ### Memory Utilization Distribution
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-disabled/wrk-cpu/memory-distribution.png" width="500" alt="Memory Distribution Disabled" />
-
+>
 > **Figure 15: Memory Distribution (observability disabled)**
 
 > <img src="assets/Benchmark-002-observability-overhead/observability-enabled/wrk-cpu/memory-distribution.png" width="500" alt="Memory Distribution Enabled" />
-
+>
 >**Figure 16: Memory Distribution (observability enabled)**
 
 The memory distribution shows that enabling observability has only a negligible impact on the overall memory footprint. The distributions remain highly similar, supporting the conclusion that instrumentation introduces minimal additional memory overhead.
@@ -668,7 +668,7 @@ Following completion of the workload, the goroutine count returned to its baseli
 No evidence of goroutine leakage or continuously increasing goroutine counts was observed.
 
 > <img src="assets/Benchmark-002-observability-overhead/grafana/goroutines.png" width="1000" alt="Goroutines" />
-
+>
 >**Figure 17: Goroutines**
 
 ---
@@ -680,7 +680,7 @@ Heap usage remained stable throughout benchmark execution.
 Heap allocation naturally increased while the proxy processed requests, after which the runtime settled into a stable operating range. Memory remained bounded throughout execution, indicating that enabling observability does not introduce uncontrolled heap growth or excessive memory retention.
 
 > <img src="assets/Benchmark-002-observability-overhead/grafana/heap-memory.png" width="1000" alt="Heap Memory" />
-
+>
 >**Figure 18: Heap Memory**
 
 ---
@@ -694,7 +694,7 @@ This behaviour is expected for a high-throughput Go application and reflects bot
 Once the workload completed, allocation activity rapidly returned to its idle level.
 
 > <img src="assets/Benchmark-002-observability-overhead/grafana/allocation-rate.png" width="1000" alt="Allocation Rate" />
-
+>
 >**Figure 19: Allocation Rate**
 
 ---
@@ -708,7 +708,7 @@ The next-GC target adapted dynamically as allocation pressure changed, while hea
 These observations indicate that the measured throughput reduction is attributable primarily to instrumentation overhead rather than garbage collection pressure.
 
 > <img src="assets/Benchmark-002-observability-overhead/grafana/next-gc.png" width="1000" alt="Garbage Collector" />
-
+>
 >**Figure 20: Garbage Collector**
 
 ---
@@ -724,7 +724,7 @@ Requests continued to be distributed evenly across both backend instances throug
 No routing bias or imbalance was introduced by the observability subsystem.
 
 > <img src="assets/Benchmark-002-observability-overhead/grafana/backend-request-rate.png" width="1000" alt="Backend Request Rate" />
-
+>
 >**Figure 21: Backend Request Rate**
 
 ### Backend Latency
@@ -734,7 +734,7 @@ Backend response latency remained nearly identical throughout benchmark executio
 Because downstream latency remained unchanged while end-to-end request latency increased slightly, the measured overhead can be attributed to processing performed inside Torus rather than by upstream services.
 
 > <img src="assets/Benchmark-002-observability-overhead/grafana/backend-latency.png" width="1000" alt="Backend Latency" />
-
+>
 >**Figure 22: Backend Latency**
 
 ### Backend Errors
@@ -742,7 +742,7 @@ Because downstream latency remained unchanged while end-to-end request latency i
 A small number of transient backend errors were recorded by the observability subsystem during benchmark execution. These events represent internal backend-level metrics and did not result in client-visible request failures. All benchmark requests completed successfully throughout both benchmark scenarios.
 
 > <img src="assets/Benchmark-002-observability-overhead/grafana/backend-errors.png" width="1000" alt="Backend Errors" />
-
+>
 >**Figure 23: Backend Errors**
 
 ---
