@@ -1,0 +1,46 @@
+id: benchmark-003-observability-disabled
+
+version: 1.0
+
+title: Observability Disabled
+
+description: Baseline benchmark with Prometheus instrumentation disabled.
+
+benchmark:
+  tools:
+    - wrk
+    - vegeta
+  protocol: http
+  url: http://localhost:8080/api
+
+torus:
+  config: torus-http-observability-disabled.yaml
+
+workload:
+  threads: 2
+  connections: 100
+  duration: 30s
+  warmup: 30s
+  iterations: 20
+  rate: 500
+
+request:
+  method: GET
+  payload: 1KB
+
+environment:
+  hardware_profile: H001
+  environment_profile: E001
+  software_profile: S001
+  methodology_version: 1.0
+
+monitoring:
+  pidstat: true
+  vmstat: true
+  ss: true
+  pprof: false
+  perf: false
+
+output:
+  dataset: benchmark-003-A-observability-disabled
+  report: benchmark-003-A-observability-disabled.md
