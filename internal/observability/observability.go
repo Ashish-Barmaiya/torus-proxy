@@ -14,6 +14,10 @@ func normalizeRoute(route string) string {
 
 // RecordHTTPRequest increments the total HTTP request counter
 func RecordHTTPRequest(method, route string, status int) {
+	if !enabled {
+		return
+	}
+
 	httpMetrics.requestsTotal.
 		WithLabelValues(method, normalizeRoute(route), strconv.Itoa(status)).
 		Inc()
@@ -21,6 +25,10 @@ func RecordHTTPRequest(method, route string, status int) {
 
 // ObserveHTTPRequestDuration records the end-to-end request latency
 func ObserveHTTPRequestDuration(method, route string, duration time.Duration) {
+	if !enabled {
+		return
+	}
+
 	httpMetrics.requestDuration.
 		WithLabelValues(method, normalizeRoute(route)).
 		Observe(duration.Seconds())
@@ -29,6 +37,10 @@ func ObserveHTTPRequestDuration(method, route string, duration time.Duration) {
 // TrackInflight increments the in-flight request gauge and returns
 // a cleanup function that must be deferred by the caller
 func TrackInflight() func() {
+	if !enabled {
+		return func() {}
+	}
+
 	httpMetrics.inflight.Inc()
 
 	return func() {
@@ -38,6 +50,9 @@ func TrackInflight() func() {
 
 // RecordBackendRequest increments the backend request counter
 func RecordBackendRequest(backend string) {
+	if !enabled {
+		return
+	}
 	backendMetrics.requestsTotal.
 		WithLabelValues(backend).
 		Inc()
@@ -48,6 +63,9 @@ func ObserveBackendRequestDuration(
 	backend string,
 	duration time.Duration,
 ) {
+	if !enabled {
+		return
+	}
 	backendMetrics.requestDuration.
 		WithLabelValues(backend).
 		Observe(duration.Seconds())
@@ -55,6 +73,9 @@ func ObserveBackendRequestDuration(
 
 // RecordBackendError increments the backend error counter
 func RecordBackendError(backend string) {
+	if !enabled {
+		return
+	}
 	backendMetrics.errorsTotal.
 		WithLabelValues(backend).
 		Inc()
@@ -62,6 +83,10 @@ func RecordBackendError(backend string) {
 
 // SetBackendHealth updates the backend health gauge
 func SetBackendHealth(backend string, healthy bool) {
+	if !enabled {
+		return
+	}
+
 	value := 0.0
 	if healthy {
 		value = 1.0
@@ -74,6 +99,10 @@ func SetBackendHealth(backend string, healthy bool) {
 
 // RecordRuntimeReload records the result of a runtime reload
 func RecordRuntimeReload(success bool) {
+	if !enabled {
+		return
+	}
+
 	result := "failure"
 	if success {
 		result = "success"
@@ -86,10 +115,16 @@ func RecordRuntimeReload(success bool) {
 
 // SetRuntimeGeneration updates the current runtime generation
 func SetRuntimeGeneration(generation uint64) {
+	if !enabled {
+		return
+	}
 	runtimeMetrics.generation.Set(float64(generation))
 }
 
 // ObserveRuntimeBuildDuration records the runtime build duration
 func ObserveRuntimeBuildDuration(duration time.Duration) {
+	if !enabled {
+		return
+	}
 	runtimeMetrics.buildTime.Observe(duration.Seconds())
 }

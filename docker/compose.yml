@@ -1,51 +1,4 @@
 services:
-  backend-1:
-    build:
-      context: ..
-      dockerfile: Dockerfile.mock
-
-    command:
-      - "3001"
-
-    expose:
-      - "3001"
-
-    restart: unless-stopped
-
-  backend-2:
-    build:
-      context: ..
-      dockerfile: Dockerfile.mock
-
-    command:
-      - "3002"
-
-    expose:
-      - "3002"
-
-    restart: unless-stopped
-
-  torus:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-
-    command:
-      - -config
-      - /etc/torus/torus-http.yaml
-
-    volumes:
-      - ../configs:/etc/torus:ro
-
-    ports:
-      - "8080:8080"
-
-    depends_on:
-      - backend-1
-      - backend-2
-
-    restart: unless-stopped
-
   prometheus:
     image: prom/prometheus:v3.7.1
 
@@ -61,8 +14,8 @@ services:
     ports:
       - "9090:9090"
 
-    depends_on:
-      - torus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     restart: unless-stopped
 

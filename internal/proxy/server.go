@@ -106,7 +106,9 @@ func (s *Server) WaitStarted() string {
 func (s *Server) Start(addr string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/", s.Handler())
-	mux.Handle("/metrics", observability.Handler())
+	if observability.Enabled() {
+		mux.Handle("/metrics", observability.Handler())
+	}
 
 	// Readiness endpoint - used by Kubernetes to check if the server is ready to receive traffic
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {

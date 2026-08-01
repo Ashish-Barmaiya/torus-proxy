@@ -33,6 +33,12 @@ func (m *Manager) buildRuntime() (*runtime.Runtime, error) {
 		return nil, err
 	}
 
+	if cfg.Observability.Enabled {
+		observability.Enable()
+	} else {
+		observability.Disable()
+	}
+
 	return runtime.BuildRuntime(cfg, m.logger)
 }
 

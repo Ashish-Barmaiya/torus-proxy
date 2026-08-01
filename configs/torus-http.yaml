@@ -8,8 +8,11 @@ health:
   timeout_ms: 2000
   path: /health
 
+observability:
+  enabled: false
+
 routes:
   - path: /api
     upstream:
-      - "http://backend-1:3001"
-      - "http://backend-2:3002"
+      - "http://localhost:3001"
+      - "http://localhost:3002"

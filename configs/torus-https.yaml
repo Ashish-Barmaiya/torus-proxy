@@ -13,6 +13,9 @@ health:
   timeout_ms: 2000
   path: /health
 
+observability:
+  enabled: true
+
 routes:
   - path: /api
     upstream:
