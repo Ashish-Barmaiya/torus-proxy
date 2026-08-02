@@ -27,7 +27,7 @@ The long-term objective is not to compete directly with established production p
 
 ## Current Features
 
-### Traffic Management
+### Request Management
 
 - Layer 7 reverse proxy built on Go's standard library (`net/http/httputil.ReverseProxy`)
 - Longest-prefix routing with path-segment boundary matching
@@ -192,24 +192,24 @@ curl http://localhost:8080/api/hello
               +---------------------------+
                             │
                             ▼
-      +---------------------------------------+
-      |       Immutable Runtime Snapshot      |
-      |---------------------------------------+
-      |        │                   │          |
-      |        │                   │          |
-      |        ▼                   ▼          |
-      |     Router            Health State    |
-      |        │                   |          |
-      |        ▼                   ▼          |
-      |    Services          Health Workers   |
-      |        │                   |          |
-      |        ▼                   |          |
-      | Reverse Proxy              |          |
-      +---------------------------------------+
-               |                   |
-               |                   |
-               ▼                   |
-         Backend Pool <------------+
+      +----------------------------------------------------+
+      |             Immutable Runtime Snapshot             |
+      |----------------------------------------------------+
+      |        │               │                 |         |
+      |        │               │                 |         |
+      |        ▼               ▼                 ▼         |
+      |     Router        Health State     Observability   |
+      |        │               |               Config      |
+      |        ▼               ▼                           |
+      |    Services      Health Workers                    |
+      |        │               |                           |
+      |        ▼               |                           |
+      | Reverse Proxy          |                           |
+      +----------------------------------------------------+
+               |               |
+               |               |
+               ▼               |
+         Backend Pool <--------+
 
   +—————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————+
   |  ** Request Path                            ** Reload Path                            ** Key Properties                     |
@@ -251,6 +251,23 @@ Each published benchmark includes a detailed engineering report, supporting visu
 - [**Benchmark-003** — Observability Overhead Evaluation](./docs/benchmarking/reports/Benchmark-003-observability-overhead.md)
 
 Additional benchmarking methodology, tooling, and reports are available in [`docs/benchmarking/`](./docs/benchmarking/).
+
+---
+
+## Architecture Decision Records
+
+Torus documents major architectural decisions using **Architecture Decision Records (ADRs)**.
+
+Each ADR captures the engineering context, alternatives considered, rationale, trade-offs, and long-term consequences behind significant design decisions. Rather than documenting only *what* was implemented, ADRs explain *why* a particular approach was selected.
+
+Current ADRs include:
+
+- [**ADR-001** — Rewrite Torus from Nodejs to Go](./docs/engineering/decision-records/ADR-001-rewrite-torus-from-nodejs-to-go.md)
+- [**ADR-002** — Use Atomic Bool for Backend Health](./docs/engineering/decision-records/ADR-002-use-atomic-bool-for-backend-health.md)
+- [**ADR-003** — Use Immutable Runtime Generations for Configuration Reload](./docs/engineering/decision-records/ADR-003-use-immutable-runtime-generations-for-configuration-reload)
+- [**ADR-004** — Runtime-Owned Observability Configuration](./docs/engineering/decision-records/ADR-004-runtime-owned-observability-configuration.md)
+
+Additional decision records are available in [`docs/engineering/decision-records/`](./docs/engineering/decision-records/).
 
 ---
 
