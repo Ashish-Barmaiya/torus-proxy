@@ -8,28 +8,32 @@ import (
 
 type instrumentedTransport struct {
 	base    http.RoundTripper
+	enabled bool
 	backend string
 }
 
-func newInstrumentedTransport(base http.RoundTripper, backend string) http.RoundTripper {
+func newInstrumentedTransport(base http.RoundTripper, enabled bool, backend string) http.RoundTripper {
 	return &instrumentedTransport{
 		base:    base,
+		enabled: enabled,
 		backend: backend,
 	}
 }
 
 func (t *instrumentedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	observability.RecordBackendRequest(t.backend)
 	start := time.Now()
 
 	resp, err := t.base.RoundTrip(req)
 
-	observability.ObserveBackendRequestDuration(
-		t.backend,
-		time.Since(start),
-	)
+	if t.enabled {
+		observability.RecordBackendRequest(t.backend)
+		observability.ObserveBackendRequestDuration(
+			t.backend,
+			time.Since(start),
+		)
+	}
 
-	if err != nil {
+	if err != nil && t.enabled {
 		observability.RecordBackendError(t.backend)
 	}
 

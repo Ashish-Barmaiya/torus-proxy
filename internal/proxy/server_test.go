@@ -23,7 +23,7 @@ func buildRuntime(t *testing.T, generation uint64, targetURLs []string) *runtime
 	var backends []*upstream.Backend
 
 	for _, url := range targetURLs {
-		b, err := upstream.NewBackend(url)
+		b, err := upstream.NewBackend(url, false)
 		if err != nil {
 			t.Fatalf("failed to build test backend node: %v", err)
 		}
@@ -40,6 +40,7 @@ func buildRuntime(t *testing.T, generation uint64, targetURLs []string) *runtime
 		"",
 		router,
 		nil,
+		false,
 		nil,
 	)
 }

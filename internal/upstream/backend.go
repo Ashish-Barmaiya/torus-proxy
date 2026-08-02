@@ -14,9 +14,10 @@ import (
 )
 
 type Backend struct {
-	URL     string
-	Proxy   *httputil.ReverseProxy
-	healthy atomic.Bool
+	URL                  string
+	Proxy                *httputil.ReverseProxy
+	healthy              atomic.Bool
+	observabilityEnabled bool
 }
 
 // IsHealthy returns true if the backend is currently healthy
@@ -27,11 +28,13 @@ func (b *Backend) IsHealthy() bool {
 // SetHealthy updates the health status
 func (b *Backend) SetHealthy(val bool) {
 	b.healthy.Store(val)
-	observability.SetBackendHealth(b.URL, val)
+	if b.observabilityEnabled {
+		observability.SetBackendHealth(b.URL, val)
+	}
 }
 
 // This creates new backend
-func NewBackend(targetUrl string) (*Backend, error) {
+func NewBackend(targetUrl string, observabilityEnabled bool) (*Backend, error) {
 	u, err := url.Parse(targetUrl)
 	if err != nil {
 		return nil, err
@@ -92,9 +95,9 @@ func NewBackend(targetUrl string) (*Backend, error) {
 		}
 		pr.Out.Header.Set("X-Request-ID", reqID)
 	}
-
 	proxy.Transport = newInstrumentedTransport(
 		customTransport,
+		observabilityEnabled,
 		targetUrl,
 	)
 
@@ -104,8 +107,9 @@ func NewBackend(targetUrl string) (*Backend, error) {
 	}
 
 	b := &Backend{
-		URL:   targetUrl,
-		Proxy: proxy,
+		URL:                  targetUrl,
+		Proxy:                proxy,
+		observabilityEnabled: observabilityEnabled,
 	}
 	b.SetHealthy(true)
 	return b, nil

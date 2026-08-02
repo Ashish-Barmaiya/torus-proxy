@@ -45,7 +45,14 @@ type TlsConfig struct {
 }
 
 type ObservabilityConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+func (c ObservabilityConfig) EnabledValue() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
 }
 
 func (h HealthCheckConfig) Interval() time.Duration {

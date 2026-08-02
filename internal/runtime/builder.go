@@ -33,13 +33,13 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 
 	generation := nextGeneration.Add(1)
 
-	rt := NewRuntime(generation, cfg.Server.Addr, router, tlsCfg, cancel)
+	rt := NewRuntime(generation, cfg.Server.Addr, router, tlsCfg, cfg.Observability.EnabledValue(), cancel)
 
 	for _, rConfig := range cfg.Routes {
 		var backends []*upstream.Backend
 
 		for _, upURL := range rConfig.Upstreams {
-			b, err := upstream.NewBackend(upURL)
+			b, err := upstream.NewBackend(upURL, cfg.Observability.EnabledValue())
 			if err != nil {
 				cancel()
 				return nil, fmt.Errorf("create backend %q: %w", upURL, err)

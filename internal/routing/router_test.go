@@ -9,10 +9,10 @@ import (
 func TestRouter_LongestPrefixMatch(t *testing.T) {
 	router := NewRouter()
 
-	b1, _ := upstream.NewBackend("http://localhost:3001")
+	b1, _ := upstream.NewBackend("http://localhost:3001", false)
 	svcApi := service.NewService([]*upstream.Backend{b1})
 
-	b2, _ := upstream.NewBackend("http://localhost:3002")
+	b2, _ := upstream.NewBackend("http://localhost:3002", false)
 	svcApiV1 := service.NewService([]*upstream.Backend{b2})
 
 	router.AddRoute("/api", svcApi)

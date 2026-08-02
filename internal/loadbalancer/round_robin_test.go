@@ -6,12 +6,12 @@ import (
 )
 
 func TestRoundRobin_Distribution(t *testing.T) {
-	b1, err := upstream.NewBackend("http://localhost:3001")
+	b1, err := upstream.NewBackend("http://localhost:3001", false)
 	if err != nil {
 		t.Fatalf("failed to create backend: %v", err)
 	}
 
-	b2, err := upstream.NewBackend("http://localhost:3002")
+	b2, err := upstream.NewBackend("http://localhost:3002", false)
 	if err != nil {
 		t.Fatalf("failed to create backend: %v", err)
 	}
@@ -35,8 +35,8 @@ func TestRoundRobin_Distribution(t *testing.T) {
 }
 
 func TestRoundRobin_Order(t *testing.T) {
-	b1, _ := upstream.NewBackend("http://localhost:3001")
-	b2, _ := upstream.NewBackend("http://localhost:3002")
+	b1, _ := upstream.NewBackend("http://localhost:3001", false)
+	b2, _ := upstream.NewBackend("http://localhost:3002", false)
 
 	backends := []*upstream.Backend{b1, b2}
 	rr := NewRoundRobin(backends)
@@ -52,8 +52,8 @@ func TestRoundRobin_Order(t *testing.T) {
 }
 
 func TestRoundRobin_SkipsUnhealthy(t *testing.T) {
-	b1, _ := upstream.NewBackend("http://localhost:3001")
-	b2, _ := upstream.NewBackend("http://localhost:3002")
+	b1, _ := upstream.NewBackend("http://localhost:3001", false)
+	b2, _ := upstream.NewBackend("http://localhost:3002", false)
 	b2.SetHealthy(false)
 
 	backends := []*upstream.Backend{b1, b2}

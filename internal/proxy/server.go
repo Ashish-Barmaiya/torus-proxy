@@ -42,9 +42,6 @@ func NewServer(rt *runtime.Runtime, logger *slog.Logger) *Server {
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
-	done := observability.TrackInflight()
-	defer done()
-
 	rec := middleware.NewStatusRecorder(w)
 	w = rec
 
@@ -57,10 +54,22 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	s.runtimeMu.RUnlock()
 	defer rt.ReleaseRequest() // Release the runtime context when the request is done
 
+	var done func()
+	if rt.ObservabilityEnabled {
+		done = observability.TrackInflight()
+	} else {
+		done = func() {}
+	}
+	defer done()
+
 	// find the correct service using routing logic
 	route, svc := rt.Router.Route(r.URL.Path)
 
 	defer func() {
+		if !rt.ObservabilityEnabled {
+			return
+		}
+
 		observability.RecordHTTPRequest(
 			r.Method,
 			route,
@@ -104,9 +113,12 @@ func (s *Server) WaitStarted() string {
 }
 
 func (s *Server) Start(addr string) error {
+	rt := s.runtime.Load()
+
 	mux := http.NewServeMux()
 	mux.Handle("/", s.Handler())
-	if observability.Enabled() {
+
+	if rt.ObservabilityEnabled {
 		mux.Handle("/metrics", observability.Handler())
 	}
 
@@ -146,8 +158,6 @@ func (s *Server) Start(addr string) error {
 	s.listener = ln
 
 	s.started <- ln.Addr().String()
-
-	rt := s.runtime.Load()
 
 	if rt.TLSConfig != nil {
 		ln = tls.NewListener(ln, rt.TLSConfig)

@@ -6,6 +6,41 @@ import (
 	"testing"
 )
 
+func TestObservabilityDefaultsToEnabled(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	content := `
+apiVersion: v1
+
+server:
+  addr: ":8080"
+
+health:
+  interval_ms: 5000
+  timeout_ms: 1000
+  path: /health
+
+routes:
+  - path: /
+    upstream:
+      - http://localhost:3001
+`
+
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !cfg.Observability.EnabledValue() {
+		t.Fatal("expected observability to default to enabled when the setting is omitted")
+	}
+}
+
 func TestLoadConfig(t *testing.T) {
 	tests := []struct {
 		name    string

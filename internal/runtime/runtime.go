@@ -15,10 +15,11 @@ func ResetGenerationForTesting() {
 }
 
 type Runtime struct {
-	Generation uint64
-	Addr       string
-	Router     *routing.Router
-	TLSConfig  *tls.Config
+	Generation           uint64
+	Addr                 string
+	Router               *routing.Router
+	TLSConfig            *tls.Config
+	ObservabilityEnabled bool
 
 	cancel    context.CancelFunc
 	requestWG sync.WaitGroup
@@ -32,13 +33,14 @@ type Runtime struct {
 //
 // Stop() cancels workers and waits until all workers and requests
 // associated with this runtime have completed before returning.
-func NewRuntime(generation uint64, addr string, router *routing.Router, tlsConfig *tls.Config, cancel context.CancelFunc) *Runtime {
+func NewRuntime(generation uint64, addr string, router *routing.Router, tlsConfig *tls.Config, observabilityEnabled bool, cancel context.CancelFunc) *Runtime {
 	return &Runtime{
-		Generation: generation,
-		Addr:       addr,
-		Router:     router,
-		TLSConfig:  tlsConfig,
-		cancel:     cancel,
+		Generation:           generation,
+		Addr:                 addr,
+		Router:               router,
+		TLSConfig:            tlsConfig,
+		ObservabilityEnabled: observabilityEnabled,
+		cancel:               cancel,
 	}
 }
 
