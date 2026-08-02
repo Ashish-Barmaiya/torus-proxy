@@ -998,7 +998,7 @@ This report is supported by two independently generated benchmark datasets.
 
 The complete benchmark datasets, including raw benchmark outputs, monitoring data, generated plots, statistical summaries, metadata, and automated reports, are available as a standalone release artifact.
 
-> **Dataset:** Available from the **GitHub Release for Benchmark-003** *(link to be added after publication).*
+> **Dataset:** Available from the [**GitHub Release for Benchmark-003**.](https://github.com/Ashish-Barmaiya/torus-proxy/releases/tag/benchmark-003-observability-overhead)
 
 The release contains the following dataset structure:
 
