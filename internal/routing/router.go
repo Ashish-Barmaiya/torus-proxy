@@ -20,7 +20,7 @@ func (r *Router) AddRoute(path string, svc *service.Service) {
 }
 
 // Longest Prefix Match
-func (r *Router) Route(path string) *service.Service {
+func (r *Router) Route(path string) (string, *service.Service) {
 	var bestmatch string
 	var bestSvc *service.Service
 
@@ -38,5 +38,5 @@ func (r *Router) Route(path string) *service.Service {
 		}
 	}
 
-	return bestSvc
+	return bestmatch, bestSvc
 }

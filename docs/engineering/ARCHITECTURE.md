@@ -8,10 +8,10 @@ Torus Proxy is a Layer 7 reverse proxy and edge API gateway written in Go. The c
 
 The proxy runs as a single OS process and uses Go's standard library networking stack rather than a multi-process worker model.
 
-- The main entrypoint in [cmd/torus/main.go](cmd/torus/main.go) wires together the server, runtime manager, and config watcher.
-- The HTTP server is created once by [internal/proxy/server.go](internal/proxy/server.go) and serves all traffic through a single shared runtime pointer.
+- The main entrypoint in [cmd/torus/main.go](./../../cmd/torus/main.go) wires together the server, runtime manager, and config watcher.
+- The HTTP server is created once by [internal/proxy/server.go](./../../internal/proxy/server.go) and serves all traffic through a single shared runtime pointer.
 - Each incoming request is handled in its own goroutine by the standard library HTTP server, which keeps the request path concurrent without manual worker management.
-- The Node.js prototype remains under [node/](node/) as a historical reference; the active implementation is the Go runtime described here.
+- The Node.js prototype remains under [node/](./../../node/) as a historical reference; the active implementation is the Go runtime described here.
 
 ---
 
@@ -23,45 +23,39 @@ Requests follow a straightforward path through the proxy runtime:
                 Client
                    │
                    ▼
-
              net/http Server
                    │
                    ▼
-
           Acquire Runtime Generation
                    │
                    ▼
-
                  Router
                    │
                    ▼
-
                 Service
                    │
                    ▼
-
-              Round-Robin
+     Round-Robin Backend Selection
                    │
                    ▼
-
-              ReverseProxy
+     Instrumented Reverse Proxy
                    │
                    ▼
-
                 Backend
                    │
                    ▼
-
         Release Runtime Generation
 ```
 
-The handler in [internal/proxy/server.go](internal/proxy/server.go) performs three key steps for each request:
+The handler in [internal/proxy/server.go](./../../internal/proxy/server.go) performs three key steps for each request:
 
 1. It acquires a runtime reference from the currently published runtime generation.
-2. It resolves the matching route and picks the next healthy backend.
-3. It forwards the request through the backend's reverse proxy.
+2. It resolves the matching route, selects the corresponding service, and obtains the next healthy backend.
+3. It forwards the request through the backend's instrumented reverse proxy.
 
 If no route matches, the handler returns `404 Not Found`. If a route exists but no healthy backend is available, it returns `503 Service Unavailable`.
+
+Request instrumentation is performed transparently by the backend transport and does not alter routing, backend selection, or request forwarding behaviour.
 
 ---
 
@@ -69,7 +63,7 @@ If no route matches, the handler returns `404 Not Found`. If a route exists but 
 
 Torus uses immutable runtime generations rather than mutating routing tables in place.
 
-The runtime struct in [internal/runtime/runtime.go](internal/runtime/runtime.go) contains:
+The runtime struct in [internal/runtime/runtime.go](./../../internal/runtime/runtime.go) contains:
 
 - a router
 - a TLS configuration
@@ -77,15 +71,15 @@ The runtime struct in [internal/runtime/runtime.go](internal/runtime/runtime.go)
 - a wait group for in-flight request tracking
 - a generation identifier
 
-The runtime is published through an `atomic.Pointer` in [internal/proxy/server.go](internal/proxy/server.go). New requests always operate against a single runtime generation from start to finish.
+The runtime is published through an `atomic.Pointer` in [internal/proxy/server.go](./../../internal/proxy/server.go). New requests always operate against a single runtime generation from start to finish.
 
-This design prevents partially applied config changes and keeps the request path safe while a reload is taking place.
+This design prevents partially applied configuration changes and keeps the request path safe while a reload is taking place. Runtime state remains immutable after publication, while operational metrics are exposed independently through the observability subsystem.
 
 ---
 
 ## 4. Routing engine
 
-Routing is implemented in [internal/routing/router.go](internal/routing/router.go).
+Routing is implemented in [internal/routing/router.go](./../../internal/routing/router.go).
 
 ### Matching strategy
 
@@ -106,8 +100,8 @@ The router stores a map of route key to service. Each configured route points to
 
 The service layer sits between routing and upstream selection.
 
-- [internal/service/service.go](internal/service/service.go) wraps a load balancer inside a service object.
-- The current implementation uses a round-robin load balancer in [internal/loadbalancer/round_robin.go](internal/loadbalancer/round_robin.go).
+- [internal/service/service.go](./../../internal/service/service.go) wraps a load balancer inside a service object.
+- The current implementation uses a round-robin load balancer in [internal/loadbalancer/round_robin.go](./../../internal/loadbalancer/round_robin.go).
 
 ### Round-robin behavior
 
@@ -119,11 +113,13 @@ This keeps backend selection simple and deterministic while still allowing runti
 
 ## 6. Upstream proxying
 
-Each backend is represented by [internal/upstream/backend.go](internal/upstream/backend.go).
+Each backend is represented by [internal/upstream/backend.go](./../../internal/upstream/backend.go).
 
 ### Reverse proxy setup
 
-Each backend creates a `httputil.ReverseProxy` with a custom `http.Transport` tuned for sustained concurrency:
+Each backend creates a `httputil.ReverseProxy` backed by an instrumented HTTP transport tuned for sustained concurrency.
+
+The underlying transport is configured with:
 
 - `MaxIdleConns`: 10,000
 - `MaxIdleConnsPerHost`: 2,000
@@ -146,17 +142,30 @@ The proxy rewrite function performs the following work before forwarding:
 
 Failures in the reverse proxy path are converted into `502 Bad Gateway` responses by the backend error handler.
 
+### Observability instrumentation
+
+Each backend wraps its transport with an instrumented transport that records request metrics during normal request forwarding.
+
+When observability is enabled, the transport records:
+
+- total requests
+- request duration
+- response status codes
+- backend-specific request metrics
+
+Instrumentation is transparent to the request path and does not modify routing, load balancing, or proxy semantics. When observability is disabled, requests bypass metric collection entirely.
+
 ---
 
 ## 7. Health checking
 
 Health checking is active rather than purely passive.
 
-The runtime builder in [internal/runtime/builder.go](internal/runtime/builder.go) creates one health prober per backend. Each prober uses the HTTP checker defined in [internal/health/http.go](internal/health/http.go) to issue a GET request to the configured health path.
+The runtime builder in [internal/runtime/builder.go](./../../internal/runtime/builder.go) creates one health prober per backend. Each prober uses the HTTP checker defined in [internal/health/http.go](./../../internal/health/http.go) to issue a GET request to the configured health path.
 
 ### Health loop
 
-The prober loop in [internal/health/checker.go](internal/health/checker.go):
+The prober loop in [internal/health/checker.go](./../../internal/health/checker.go):
 
 - runs periodically using the configured interval
 - uses the configured timeout per probe
@@ -174,9 +183,30 @@ This keeps a single health-check bug from taking down the whole proxy process.
 
 ---
 
-## 8. Configuration and TLS
+## 8. Observability
 
-Configuration is loaded from YAML through [internal/config/config.go](internal/config/config.go).
+Observability is implemented as an optional subsystem that can be enabled through configuration.
+
+When enabled, Torus exposes a Prometheus-compatible `/metrics` endpoint and publishes runtime, process, backend, and HTTP request metrics suitable for scraping by Prometheus and visualization with Grafana.
+
+The subsystem exports metrics covering:
+
+- HTTP request throughput
+- request latency histograms
+- response status codes
+- backend health status
+- Go runtime statistics
+- process metrics
+
+Metric collection is passive and does not participate in routing decisions, backend selection, or health checking.
+
+The runtime overhead introduced by this subsystem is evaluated in Benchmark-003, which demonstrates that enabling observability introduces only a small and predictable performance cost while preserving runtime stability.
+
+---
+
+## 9. Configuration and TLS
+
+Configuration is loaded from YAML through [internal/config/config.go](./../../internal/config/config.go).
 
 The config schema includes:
 
@@ -186,6 +216,7 @@ The config schema includes:
 - `health.path`
 - `routes` with one or more upstreams each
 - optional `tls.cert_file`, `tls.key_file`, and `tls.min_version`
+- optional `observability.enabled`
 
 Validation ensures that:
 
@@ -199,12 +230,12 @@ When TLS is configured, the server wraps the listener with `tls.NewListener` so 
 
 ---
 
-## 9. Hot reload and configuration watcher
+## 10. Hot reload and configuration watcher
 
 Hot reload is handled by the reload manager and the config watcher.
 
-- [internal/reload/manager.go](internal/reload/manager.go) builds a fresh runtime from the latest config.
-- [internal/configwatcher/watcher.go](internal/configwatcher/watcher.go) watches the config file's directory using `fsnotify`.
+- [internal/reload/manager.go](./../../internal/reload/manager.go) builds a fresh runtime from the latest config.
+- [internal/configwatcher/watcher.go](./../../internal/configwatcher/watcher.go) watches the config file's directory using `fsnotify`.
 - Changes are debounced before a reload is triggered so a burst of writes does not cause repeated rebuilds.
 
 ### Reload sequence
@@ -219,18 +250,23 @@ This design supports zero-downtime reloads while keeping the runtime immutable a
 
 ---
 
-## 10. Server lifecycle and readiness
+## 11. Server lifecycle and readiness
 
-The server exposes a readiness endpoint at `/readyz` in [internal/proxy/server.go](internal/proxy/server.go).
+The server exposes operational endpoints in [internal/proxy/server.go](./../../internal/proxy/server.go).
 
-- `200 OK` is returned once the server has fully started.
-- `503 Service Unavailable` is returned before startup completes or during shutdown.
+- `/readyz` reports proxy readiness.
+- `/metrics` exposes Prometheus metrics when observability is enabled.
+
+`/readyz` returns:
+
+- `200 OK` once the server has fully started.
+- `503 Service Unavailable` before startup completes or during shutdown.
 
 The shutdown path drains requests with a grace period and then forces cancellation if the graceful window expires.
 
 ---
 
-## 11. Concurrency model
+## 12. Concurrency model
 
 The current implementation relies on a small set of synchronization primitives:
 
@@ -243,14 +279,17 @@ This gives the proxy a safe and predictable concurrency model without introducin
 
 ---
 
-## 12. Current design direction
+## 13. Current design direction
 
 The present architecture favors the following properties:
 
 - simplicity over feature breadth
-- explicit, testable runtime boundaries
-- safe configuration reloads
+- immutable runtime generations
+- zero-downtime configuration reloads
+- explicit ownership of routing and backend state
+- optional built-in observability
+- measurable and reproducible performance engineering
 - strong separation between routing, balancing, health checking, and proxying
 - use of Go's standard library rather than a larger framework
 
-The repository's benchmarking and engineering documentation in [docs/benchmarking](docs/benchmarking) and [docs/engineering](docs/engineering) continue to document performance and design decisions as the code evolves.
+The repository's benchmarking and engineering documentation in [docs/benchmarking](../benchmarking/) and [docs/engineering](./) document the architecture, performance characteristics, and design decisions as the project evolves.

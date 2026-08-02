@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"time"
+	"torus-proxy/internal/observability"
 	"torus-proxy/internal/reload"
 
 	"github.com/fsnotify/fsnotify"
@@ -77,6 +78,7 @@ func (w *Watcher) Start(ctx context.Context) error {
 			}
 			debounce = time.AfterFunc(250*time.Millisecond, func() {
 				if err := w.manager.Reload(); err != nil {
+					observability.RecordRuntimeReload(false)
 					w.logger.Error(
 						"failed to reload configuration",
 						"error", err,

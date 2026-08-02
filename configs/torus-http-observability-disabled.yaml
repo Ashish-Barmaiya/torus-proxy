@@ -1,0 +1,18 @@
+apiVersion: v1
+
+server:
+  addr: ":8080"
+
+health:
+  interval_ms: 5000
+  timeout_ms: 2000
+  path: /health
+
+observability:
+  enabled: false
+
+routes:
+  - path: /api
+    upstream:
+      - "http://localhost:3001"
+      - "http://localhost:3002"

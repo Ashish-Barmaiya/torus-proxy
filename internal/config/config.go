@@ -15,11 +15,12 @@ import (
 const CurrentAPIVersion = "v1"
 
 type Config struct {
-	APIVersion  string            `yaml:"apiVersion"`
-	Server      ServerConfig      `yaml:"server"`
-	HealthCheck HealthCheckConfig `yaml:"health"`
-	Routes      []RouteConfig     `yaml:"routes"`
-	Tls         *TlsConfig        `yaml:"tls"`
+	APIVersion    string              `yaml:"apiVersion"`
+	Server        ServerConfig        `yaml:"server"`
+	HealthCheck   HealthCheckConfig   `yaml:"health"`
+	Routes        []RouteConfig       `yaml:"routes"`
+	Tls           *TlsConfig          `yaml:"tls"`
+	Observability ObservabilityConfig `yaml:"observability"`
 }
 
 type ServerConfig struct {
@@ -41,6 +42,17 @@ type TlsConfig struct {
 	CertFile   string `yaml:"cert_file"`
 	KeyFile    string `yaml:"key_file"`
 	MinVersion string `yaml:"min_version,omitempty"` // defaults to TLS 1.2 if not specified
+}
+
+type ObservabilityConfig struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+func (c ObservabilityConfig) EnabledValue() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
 }
 
 func (h HealthCheckConfig) Interval() time.Duration {

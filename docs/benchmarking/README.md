@@ -47,7 +47,6 @@ benchmarking/
 |   └── software.md
 |
 ├── reports/
-├── datasets/
 ├── analysis/
 ├── scripts/
 ├── scenarios/
@@ -145,6 +144,38 @@ Final Benchmark Report
 
 ---
 
+# Running a Benchmark
+
+Each benchmark is defined by a scenario located in:
+
+```text
+scenarios/
+```
+
+The benchmark automation framework executes a scenario by name.
+
+Example:
+
+```bash
+./docs/benchmarking/scripts/benchmark.sh benchmark-003-observability-enabled
+```
+
+or
+
+```bash
+./docs/benchmarking/scripts/benchmark.sh benchmark-003-observability-disabled
+```
+
+Before running a benchmark, ensure that:
+
+- the required backend services are running;
+- Torus is started with the appropriate benchmark configuration;
+- any required supporting infrastructure (for example Prometheus and Grafana for observability benchmarks) is running.
+
+Refer to the published benchmark report for the exact execution procedure used for a specific benchmark.
+
+---
+
 # Benchmark Reports
 
 Published benchmark reports are stored in
@@ -184,7 +215,8 @@ Typical contents include:
 
 Datasets are generated automatically by the benchmarking framework.
 
-Published benchmark datasets are distributed separately from the repository as release assets to keep the repository lightweight while preserving reproducibility.
+Published datasets are distributed separately as GitHub Release assets and accompany the corresponding benchmark report, allowing every published result to be independently reproduced and verified.
+
 
 ---
 
@@ -204,5 +236,11 @@ The benchmarking framework follows several core principles:
 # Current Status
 
 The benchmarking infrastructure is complete and actively used for evaluating Torus.
+
+Current benchmarks include:
+
+- [Node.js to Go performance evaluation](./reports/Benchmark-001-nodejs-to-go-performance-evaluation.md)
+- [HTTP vs HTTPS performance evaluation](./reports/Benchmark-002-http-vs-https.md)
+- [Observability overhead evaluation](./reports/Benchmark-003-observability-overhead.md)
 
 Future work focuses primarily on publishing benchmark reports for new features, optimizations, regressions, scalability studies, and comparative evaluations.

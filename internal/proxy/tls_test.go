@@ -37,18 +37,17 @@ func TestTLSIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	b, err := upstream.NewBackend(backend.URL)
+	b, err := upstream.NewBackend(backend.URL, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.Proxy.Transport.(*http.Transport).ResponseHeaderTimeout = 10 * time.Second
 
 	baseCtx, forceCancel := context.WithCancel(context.Background())
 	svc := service.NewService([]*upstream.Backend{b})
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
 
-	rt := runtime.NewRuntime(1, "", router, tlsCfg, forceCancel)
+	rt := runtime.NewRuntime(1, "", router, tlsCfg, false, forceCancel)
 	srv := NewServer(rt, testLogger)
 
 	// Start torus server on a random port with TLS

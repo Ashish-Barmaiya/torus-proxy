@@ -1,0 +1,25 @@
+{
+    "annotations": {
+        "list": []
+    },
+    "editable": true,
+    "graphTooltip": 0,
+    "panels": [],
+    "refresh": "5s",
+    "schemaVersion": 41,
+    "style": "dark",
+    "tags": [
+        "torus"
+    ],
+    "templating": {
+        "list": []
+    },
+    "time": {
+        "from": "now-15m",
+        "to": "now"
+    },
+    "timezone": "",
+    "title": "Torus Overview",
+    "uid": "torus-overview",
+    "version": 1
+}

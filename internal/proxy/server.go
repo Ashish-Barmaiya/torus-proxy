@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 	"torus-proxy/internal/middleware"
+	"torus-proxy/internal/observability"
 	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/transport"
 )
@@ -39,17 +40,49 @@ func NewServer(rt *runtime.Runtime, logger *slog.Logger) *Server {
 
 // The HTTP Handler function
 func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	rec := middleware.NewStatusRecorder(w)
+	w = rec
+
 	// Acquire a runtime context for this request
 	// RWMutex prevents race window between load() and acquire() operation
 	s.runtimeMu.RLock()
 	rt := s.runtime.Load()
 
-	rt.Acquire()
+	rt.AcquireRequest()
 	s.runtimeMu.RUnlock()
-	defer rt.Release() // Release the runtime context when the request is done
+	defer rt.ReleaseRequest() // Release the runtime context when the request is done
+
+	var done func()
+	if rt.ObservabilityEnabled {
+		done = observability.TrackInflight()
+	} else {
+		done = func() {}
+	}
+	defer done()
 
 	// find the correct service using routing logic
-	svc := rt.Router.Route(r.URL.Path)
+	route, svc := rt.Router.Route(r.URL.Path)
+
+	defer func() {
+		if !rt.ObservabilityEnabled {
+			return
+		}
+
+		observability.RecordHTTPRequest(
+			r.Method,
+			route,
+			rec.Status(),
+		)
+
+		observability.ObserveHTTPRequestDuration(
+			r.Method,
+			route,
+			time.Since(start),
+		)
+	}()
+
 	if svc == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
@@ -80,8 +113,14 @@ func (s *Server) WaitStarted() string {
 }
 
 func (s *Server) Start(addr string) error {
+	rt := s.runtime.Load()
+
 	mux := http.NewServeMux()
 	mux.Handle("/", s.Handler())
+
+	if rt.ObservabilityEnabled {
+		mux.Handle("/metrics", observability.Handler())
+	}
 
 	// Readiness endpoint - used by Kubernetes to check if the server is ready to receive traffic
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
@@ -120,8 +159,6 @@ func (s *Server) Start(addr string) error {
 
 	s.started <- ln.Addr().String()
 
-	rt := s.runtime.Load()
-
 	if rt.TLSConfig != nil {
 		ln = tls.NewListener(ln, rt.TLSConfig)
 	}
@@ -156,6 +193,12 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 		return nil
 	}
 
+	defer func() {
+		if rt := s.runtime.Load(); rt != nil {
+			rt.Stop()
+		}
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -188,6 +231,9 @@ func (s *Server) Reload(newRuntime *runtime.Runtime) {
 	oldRuntime := s.runtime.Swap(newRuntime)
 
 	s.runtimeMu.Unlock()
+
+	observability.SetRuntimeGeneration(newRuntime.Generation)
+	observability.RecordRuntimeReload(true)
 
 	s.logger.Info(
 		"runtime reloaded",

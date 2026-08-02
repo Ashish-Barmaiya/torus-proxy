@@ -8,14 +8,16 @@ import (
 	"net/url"
 	"sync/atomic"
 	"time"
+	"torus-proxy/internal/observability"
 
 	"github.com/google/uuid"
 )
 
 type Backend struct {
-	URL     string
-	Proxy   *httputil.ReverseProxy
-	healthy atomic.Bool
+	URL                  string
+	Proxy                *httputil.ReverseProxy
+	healthy              atomic.Bool
+	observabilityEnabled bool
 }
 
 // IsHealthy returns true if the backend is currently healthy
@@ -26,10 +28,13 @@ func (b *Backend) IsHealthy() bool {
 // SetHealthy updates the health status
 func (b *Backend) SetHealthy(val bool) {
 	b.healthy.Store(val)
+	if b.observabilityEnabled {
+		observability.SetBackendHealth(b.URL, val)
+	}
 }
 
 // This creates new backend
-func NewBackend(targetUrl string) (*Backend, error) {
+func NewBackend(targetUrl string, observabilityEnabled bool) (*Backend, error) {
 	u, err := url.Parse(targetUrl)
 	if err != nil {
 		return nil, err
@@ -90,8 +95,11 @@ func NewBackend(targetUrl string) (*Backend, error) {
 		}
 		pr.Out.Header.Set("X-Request-ID", reqID)
 	}
-
-	proxy.Transport = customTransport
+	proxy.Transport = newInstrumentedTransport(
+		customTransport,
+		observabilityEnabled,
+		targetUrl,
+	)
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		log.Printf("proxy error: %v", err)
@@ -99,9 +107,10 @@ func NewBackend(targetUrl string) (*Backend, error) {
 	}
 
 	b := &Backend{
-		URL:   targetUrl,
-		Proxy: proxy,
+		URL:                  targetUrl,
+		Proxy:                proxy,
+		observabilityEnabled: observabilityEnabled,
 	}
-	b.healthy.Store(true)
+	b.SetHealthy(true)
 	return b, nil
 }

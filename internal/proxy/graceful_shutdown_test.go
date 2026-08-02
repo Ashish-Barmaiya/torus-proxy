@@ -24,18 +24,16 @@ func TestGracefulShutdown(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	b, err := upstream.NewBackend(backend.URL)
+	b, err := upstream.NewBackend(backend.URL, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	b.Proxy.Transport.(*http.Transport).ResponseHeaderTimeout = 10 * time.Second
 
 	svc := service.NewService([]*upstream.Backend{b})
 	router := routing.NewRouter()
 	router.AddRoute("/api", svc)
 
-	rt := runtime.NewRuntime(1, "", router, nil, nil)
+	rt := runtime.NewRuntime(1, "", router, nil, false, nil)
 	srv := NewServer(rt, testLogger)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
