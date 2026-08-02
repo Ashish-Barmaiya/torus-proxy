@@ -264,7 +264,7 @@ Current ADRs include:
 
 - [**ADR-001** — Rewrite Torus from Nodejs to Go](./docs/engineering/decision-records/ADR-001-rewrite-torus-from-nodejs-to-go.md)
 - [**ADR-002** — Use Atomic Bool for Backend Health](./docs/engineering/decision-records/ADR-002-use-atomic-bool-for-backend-health.md)
-- [**ADR-003** — Use Immutable Runtime Generations for Configuration Reload](./docs/engineering/decision-records/ADR-003-use-immutable-runtime-generations-for-configuration-reload)
+- [**ADR-003** — Use Immutable Runtime Generations for Configuration Reload](./docs/engineering/decision-records/ADR-003-use-immutable-runtime-generations-for-configuration-reload.md)
 - [**ADR-004** — Runtime-Owned Observability Configuration](./docs/engineering/decision-records/ADR-004-runtime-owned-observability-configuration.md)
 
 Additional decision records are available in [`docs/engineering/decision-records/`](./docs/engineering/decision-records/).
