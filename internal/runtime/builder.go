@@ -35,25 +35,36 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 
 	rt := NewRuntime(generation, cfg.Server.Addr, router, tlsCfg, cfg.Observability.EnabledValue(), cancel)
 
-	for _, rConfig := range cfg.Routes {
-		var backends []*upstream.Backend
+	services := make(map[string]*service.Service, len(cfg.Services))
 
-		for _, upURL := range rConfig.Upstreams {
-			b, err := upstream.NewBackend(upURL, cfg.Observability.EnabledValue())
+	// Build services and their backend pools.
+	for _, serviceConfig := range cfg.Services {
+		backends := make([]*upstream.Backend, 0, len(serviceConfig.Upstreams))
+
+		for _, upstreamURL := range serviceConfig.Upstreams {
+			backend, err := upstream.NewBackend(
+				upstreamURL,
+				cfg.Observability.EnabledValue(),
+			)
 			if err != nil {
 				cancel()
-				return nil, fmt.Errorf("create backend %q: %w", upURL, err)
+				return nil, fmt.Errorf(
+					"create backend %q for service %q: %w",
+					upstreamURL,
+					serviceConfig.Name,
+					err,
+				)
 			}
 
-			backends = append(backends, b)
+			backends = append(backends, backend)
 
 			checker := &health.HTTPChecker{
-				URL:    b.URL,
+				URL:    backend.URL,
 				Client: healthClient,
 				Path:   cfg.HealthCheck.Path,
 			}
 
-			backend := b
+			backendRef := backend
 
 			health.StartProber(
 				ctx,
@@ -61,14 +72,23 @@ func BuildRuntime(cfg *config.Config, logger *slog.Logger) (*Runtime, error) {
 				checker,
 				cfg.HealthCheck.Interval(),
 				cfg.HealthCheck.Timeout(),
-				func() { backend.SetHealthy(true) },
-				func() { backend.SetHealthy(false) },
+				func() {
+					backendRef.SetHealthy(true)
+				},
+				func() {
+					backendRef.SetHealthy(false)
+				},
 				logger,
 			)
 		}
 
-		svc := service.NewService(backends)
-		router.AddRoute(rConfig.Path, svc)
+		services[serviceConfig.Name] = service.NewService(backends)
+	}
+
+	for _, routeConfig := range cfg.Routes {
+		svc := services[routeConfig.Service]
+
+		router.AddRoute(routeConfig.Path, svc)
 	}
 
 	observability.ObserveRuntimeBuildDuration(

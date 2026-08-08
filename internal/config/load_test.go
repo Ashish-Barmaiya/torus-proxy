@@ -11,7 +11,7 @@ func TestObservabilityDefaultsToEnabled(t *testing.T) {
 	configPath := filepath.Join(dir, "config.yaml")
 
 	content := `
-apiVersion: v1
+apiVersion: v2
 
 server:
   addr: ":8080"
@@ -21,10 +21,14 @@ health:
   timeout_ms: 1000
   path: /health
 
+services:
+  - name: api
+    upstreams:
+      - http://localhost:3001
+
 routes:
   - path: /
-    upstream:
-      - http://localhost:3001
+    service: api
 `
 
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
@@ -50,6 +54,54 @@ func TestLoadConfig(t *testing.T) {
 		{
 			name: "valid config",
 			content: `
+apiVersion: v2
+
+server:
+  addr: ":8080"
+
+health:
+  interval_ms: 5000
+  timeout_ms: 1000
+  path: /health
+
+services:
+  - name: api
+    upstreams:
+      - http://localhost:3001
+
+routes:
+  - path: /
+    service: api
+`,
+			wantErr: false,
+		},
+		{
+			name: "invalid yaml",
+			content: `
+apiVersion: v2
+
+server:
+  addr: :
+
+health:
+  interval_ms: 5000
+  timeout_ms: 1000
+  path: /health
+
+services:
+  - name: api
+    upstreams:
+      - http://localhost:3001
+
+routes:
+  - path: /
+    service: api
+`,
+			wantErr: true,
+		},
+		{
+			name: "unsupported api version",
+			content: `
 apiVersion: v1
 
 server:
@@ -60,25 +112,19 @@ health:
   timeout_ms: 1000
   path: /health
 
+services:
+  - name: api
+    upstreams:
+      - http://localhost:3001
+
 routes:
   - path: /
-    upstream:
-      - http://localhost:3001
-`,
-			wantErr: false,
-		},
-		{
-			name: "invalid yaml",
-			content: `
-apiVersion: v1
-
-server:
-  addr: :
+    service: api
 `,
 			wantErr: true,
 		},
 		{
-			name: "unsupported api version",
+			name: "semantic validation failure",
 			content: `
 apiVersion: v2
 
@@ -90,17 +136,21 @@ health:
   timeout_ms: 1000
   path: /health
 
+services:
+  - name: api
+    upstreams:
+      - http://localhost:
+
 routes:
   - path: /
-    upstream:
-      - http://localhost:3001
+    service: api
 `,
 			wantErr: true,
 		},
 		{
-			name: "semantic validation failure",
+			name: "route references missing service",
 			content: `
-apiVersion: v1
+apiVersion: v2
 
 server:
   addr: ":8080"
@@ -110,10 +160,14 @@ health:
   timeout_ms: 1000
   path: /health
 
+services:
+  - name: api
+    upstreams:
+      - http://localhost:3001
+
 routes:
   - path: /
-    upstream:
-      - http://localhost:
+    service: missing
 `,
 			wantErr: true,
 		},
@@ -122,7 +176,6 @@ routes:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-
 			configPath := filepath.Join(dir, "config.yaml")
 
 			if err := os.WriteFile(configPath, []byte(tt.content), 0644); err != nil {
