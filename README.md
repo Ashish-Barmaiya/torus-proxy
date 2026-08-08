@@ -101,7 +101,7 @@ The repository includes sample configuration files in [configs/](configs/):
 A minimal HTTP example looks like this:
 
 ```yaml
-apiVersion: v1
+apiVersion: v2
 
 server:
   addr: ":8080"
@@ -114,11 +114,15 @@ health:
 observability:
   enabled: true # When enabled, Torus exposes Prometheus metrics at /metrics.
 
+services:
+  - name: api
+    upstreams:
+      - http://localhost:3001
+      - http://localhost:3002
+
 routes:
   - path: /api
-    upstream:
-      - "http://localhost:3001"
-      - "http://localhost:3002"
+    service: api
 ```
 
 The HTTPS sample adds a `tls` section with certificate paths and a minimum version:

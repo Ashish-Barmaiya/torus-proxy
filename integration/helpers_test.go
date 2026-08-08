@@ -90,23 +90,32 @@ func writeConfig(t *testing.T, path, listenAddr string, upstreams ...string) {
 
 	defer file.Close()
 
-	_, _ = fmt.Fprintln(file, "apiVersion: v1")
+	_, _ = fmt.Fprintln(file, "apiVersion: v2")
 	_, _ = fmt.Fprintln(file)
+
 	_, _ = fmt.Fprintln(file, "server:")
 	_, _ = fmt.Fprintf(file, "  addr: %q\n", listenAddr)
 	_, _ = fmt.Fprintln(file)
+
 	_, _ = fmt.Fprintln(file, "health:")
 	_, _ = fmt.Fprintln(file, "  interval_ms: 5000")
 	_, _ = fmt.Fprintln(file, "  timeout_ms: 2000")
 	_, _ = fmt.Fprintln(file, "  path: /health")
 	_, _ = fmt.Fprintln(file)
-	_, _ = fmt.Fprintln(file, "routes:")
-	_, _ = fmt.Fprintln(file, "  - path: /api")
-	_, _ = fmt.Fprintln(file, "    upstream:")
+
+	_, _ = fmt.Fprintln(file, "services:")
+	_, _ = fmt.Fprintln(file, "  - name: api")
+	_, _ = fmt.Fprintln(file, "    upstreams:")
 
 	for _, u := range upstreams {
 		_, _ = fmt.Fprintf(file, "      - %q\n", u)
 	}
+
+	_, _ = fmt.Fprintln(file)
+
+	_, _ = fmt.Fprintln(file, "routes:")
+	_, _ = fmt.Fprintln(file, "  - path: /api")
+	_, _ = fmt.Fprintln(file, "    service: api")
 
 	if err := file.Sync(); err != nil {
 		t.Fatal(err)
@@ -232,25 +241,35 @@ func writeHealthConfig(
 	if err != nil {
 		t.Fatalf("create config: %v", err)
 	}
+
 	defer file.Close()
 
-	_, _ = fmt.Fprintln(file, "apiVersion: v1")
+	_, _ = fmt.Fprintln(file, "apiVersion: v2")
 	_, _ = fmt.Fprintln(file)
+
 	_, _ = fmt.Fprintln(file, "server:")
 	_, _ = fmt.Fprintf(file, "  addr: %q\n", listenAddr)
 	_, _ = fmt.Fprintln(file)
+
 	_, _ = fmt.Fprintln(file, "health:")
 	_, _ = fmt.Fprintf(file, "  interval_ms: %d\n", intervalMS)
 	_, _ = fmt.Fprintf(file, "  timeout_ms: %d\n", timeoutMS)
 	_, _ = fmt.Fprintln(file, "  path: /health")
 	_, _ = fmt.Fprintln(file)
-	_, _ = fmt.Fprintln(file, "routes:")
-	_, _ = fmt.Fprintln(file, "  - path: /api")
-	_, _ = fmt.Fprintln(file, "    upstream:")
+
+	_, _ = fmt.Fprintln(file, "services:")
+	_, _ = fmt.Fprintln(file, "  - name: api")
+	_, _ = fmt.Fprintln(file, "    upstreams:")
 
 	for _, u := range upstreams {
 		_, _ = fmt.Fprintf(file, "      - %q\n", u)
 	}
+
+	_, _ = fmt.Fprintln(file)
+
+	_, _ = fmt.Fprintln(file, "routes:")
+	_, _ = fmt.Fprintln(file, "  - path: /api")
+	_, _ = fmt.Fprintln(file, "    service: api")
 
 	if err := file.Sync(); err != nil {
 		t.Fatal(err)
