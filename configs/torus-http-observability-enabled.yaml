@@ -1,4 +1,4 @@
-apiVersion: v1
+apiVersion: v2
 
 server:
   addr: ":8080"
@@ -11,8 +11,12 @@ health:
 observability:
   enabled: true
 
+services:
+  - name: api
+    upstreams:
+      - http://localhost:3001
+      - http://localhost:3002
+
 routes:
   - path: /api
-    upstream:
-      - "http://localhost:3001"
-      - "http://localhost:3002"
+    service: api

@@ -5,5 +5,5 @@ import (
 )
 
 type LoadBalancer interface {
-	Next() *upstream.Backend	
+	Next() *upstream.Backend
 }

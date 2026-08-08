@@ -38,7 +38,7 @@ Requests follow a straightforward path through the proxy runtime:
      Round-Robin Backend Selection
                    │
                    ▼
-     Instrumented Reverse Proxy
+      Instrumented Reverse Proxy
                    │
                    ▼
                 Backend
@@ -214,16 +214,32 @@ The config schema includes:
 - `health.interval_ms`
 - `health.timeout_ms`
 - `health.path`
-- `routes` with one or more upstreams each
+- `services`, each containing one or more upstreams
+- `routes`, each mapping a request path to a service
 - optional `tls.cert_file`, `tls.key_file`, and `tls.min_version`
 - optional `observability.enabled`
+
+The configuration separates routing from backend ownership:
+
+```text
+Route
+  │
+  └── service reference
+          │
+          ▼
+       Service
+          │
+          └── upstreams
+```
 
 Validation ensures that:
 
 - the server address is present
 - health interval and timeout are valid
 - the health path starts with `/`
-- each route has a non-empty path and at least one upstream
+- each service has a unique name and at least one upstream
+- each route has a non-empty path
+- each route references an existing service
 - TLS settings are present and valid when TLS is enabled
 
 When TLS is configured, the server wraps the listener with `tls.NewListener` so the proxy can terminate TLS directly.

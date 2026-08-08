@@ -12,12 +12,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const CurrentAPIVersion = "v1"
+const CurrentAPIVersion = "v2"
 
 type Config struct {
 	APIVersion    string              `yaml:"apiVersion"`
 	Server        ServerConfig        `yaml:"server"`
 	HealthCheck   HealthCheckConfig   `yaml:"health"`
+	Services      []ServiceConfig     `yaml:"services"`
 	Routes        []RouteConfig       `yaml:"routes"`
 	Tls           *TlsConfig          `yaml:"tls"`
 	Observability ObservabilityConfig `yaml:"observability"`
@@ -33,9 +34,14 @@ type HealthCheckConfig struct {
 	Path       string `yaml:"path"`
 }
 
+type ServiceConfig struct {
+	Name      string   `yaml:"name"`
+	Upstreams []string `yaml:"upstreams"`
+}
+
 type RouteConfig struct {
-	Path      string   `yaml:"path"`
-	Upstreams []string `yaml:"upstream"`
+	Path    string `yaml:"path"`
+	Service string `yaml:"service"`
 }
 
 type TlsConfig struct {
@@ -91,6 +97,103 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("health.path must start with '/'")
 	}
 
+	// Services
+	if len(c.Services) == 0 {
+		return fmt.Errorf("at least one service must be configured")
+	}
+
+	seenServices := make(map[string]struct{})
+
+	for i, svc := range c.Services {
+		name := strings.TrimSpace(svc.Name)
+
+		if name == "" {
+			return fmt.Errorf("services[%d].name must not be empty", i)
+		}
+
+		if _, exists := seenServices[name]; exists {
+			return fmt.Errorf("duplicate service name %q", name)
+		}
+
+		seenServices[name] = struct{}{}
+
+		if len(svc.Upstreams) == 0 {
+			return fmt.Errorf(
+				"services[%d].upstreams must contain at least one upstream",
+				i,
+			)
+		}
+
+		for j, upstream := range svc.Upstreams {
+			if strings.TrimSpace(upstream) == "" {
+				return fmt.Errorf(
+					"services[%d].upstreams[%d] must not be empty",
+					i,
+					j,
+				)
+			}
+
+			u, err := url.ParseRequestURI(upstream)
+			if err != nil {
+				return fmt.Errorf(
+					"services[%d].upstreams[%d]: invalid URL: %w",
+					i,
+					j,
+					err,
+				)
+			}
+
+			switch u.Scheme {
+			case "http", "https":
+			default:
+				return fmt.Errorf(
+					"services[%d].upstreams[%d]: unsupported URL scheme %q",
+					i,
+					j,
+					u.Scheme,
+				)
+			}
+
+			host := u.Hostname()
+			port := u.Port()
+
+			if host == "" {
+				return fmt.Errorf(
+					"services[%d].upstreams[%d]: missing host",
+					i,
+					j,
+				)
+			}
+
+			if port == "" {
+				return fmt.Errorf(
+					"services[%d].upstreams[%d]: missing port",
+					i,
+					j,
+				)
+			}
+
+			portNum, err := strconv.Atoi(port)
+			if err != nil {
+				return fmt.Errorf(
+					"services[%d].upstreams[%d]: invalid port %q",
+					i,
+					j,
+					port,
+				)
+			}
+
+			if portNum < 1 || portNum > 65535 {
+				return fmt.Errorf(
+					"services[%d].upstreams[%d]: port %d out of range",
+					i,
+					j,
+					portNum,
+				)
+			}
+		}
+	}
+
 	// Routes
 	if len(c.Routes) == 0 {
 		return fmt.Errorf("at least one route must be configured")
@@ -108,73 +211,18 @@ func (c *Config) Validate() error {
 		}
 		seenPaths[route.Path] = struct{}{}
 
-		if len(route.Upstreams) == 0 {
-			return fmt.Errorf("routes[%d] must contain at least one upstream", i)
+		serviceName := strings.TrimSpace(route.Service)
+
+		if serviceName == "" {
+			return fmt.Errorf("routes[%d].service must not be empty", i)
 		}
 
-		for j, upstream := range route.Upstreams {
-			if strings.TrimSpace(upstream) == "" {
-				return fmt.Errorf("routes[%d].upstream[%d] must not be empty", i, j)
-			}
-
-			u, err := url.ParseRequestURI(upstream)
-			if err != nil {
-				return fmt.Errorf(
-					"routes[%d].upstream[%d]: invalid URL: %w",
-					i,
-					j,
-					err,
-				)
-			}
-
-			switch u.Scheme {
-			case "http", "https":
-			default:
-				return fmt.Errorf(
-					"routes[%d].upstream[%d]: unsupported URL scheme %q",
-					i,
-					j,
-					u.Scheme,
-				)
-			}
-
-			host := u.Hostname()
-			port := u.Port()
-
-			if host == "" {
-				return fmt.Errorf(
-					"routes[%d].upstream[%d]: missing host",
-					i,
-					j,
-				)
-			}
-
-			if port == "" {
-				return fmt.Errorf(
-					"routes[%d].upstream[%d]: missing port",
-					i,
-					j,
-				)
-			}
-
-			portNum, err := strconv.Atoi(port)
-			if err != nil {
-				return fmt.Errorf(
-					"routes[%d].upstream[%d]: invalid port %q",
-					i,
-					j,
-					port,
-				)
-			}
-
-			if portNum < 1 || portNum > 65535 {
-				return fmt.Errorf(
-					"routes[%d].upstream[%d]: port %d out of range",
-					i,
-					j,
-					portNum,
-				)
-			}
+		if _, exists := seenServices[serviceName]; !exists {
+			return fmt.Errorf(
+				"routes[%d].service %q does not exist",
+				i,
+				serviceName,
+			)
 		}
 	}
 
