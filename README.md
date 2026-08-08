@@ -204,8 +204,11 @@ curl http://localhost:8080/api/hello
       |        ▼               ▼                 ▼         |
       |     Router        Health State     Observability   |
       |        │               |               Config      |
+      |        ▼               |                           |
+      |    Services            |                           |
+      |        │               |                           |
       |        ▼               ▼                           |
-      |    Services      Health Workers                    |
+      | Load balancer----Health Workers                    |
       |        │               |                           |
       |        ▼               |                           |
       | Reverse Proxy          |                           |

@@ -11,7 +11,7 @@ type Service struct {
 
 func NewService(backends []*upstream.Backend) *Service {
 	return &Service{
-		lb : loadbalancer.NewRoundRobin(backends),
+		lb: loadbalancer.NewRoundRobin(backends),
 	}
 }
 

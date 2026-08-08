@@ -102,7 +102,7 @@ routes:
 		{
 			name: "unsupported api version",
 			content: `
-apiVersion: v2
+apiVersion: v5
 
 server:
   addr: ":8080"
