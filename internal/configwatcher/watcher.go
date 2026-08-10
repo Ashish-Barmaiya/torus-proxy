@@ -6,18 +6,21 @@ import (
 	"path/filepath"
 	"time"
 	"torus-proxy/internal/observability"
-	"torus-proxy/internal/reload"
 
 	"github.com/fsnotify/fsnotify"
 )
 
+type ReloadManager interface {
+	Reload() error
+}
+
 type Watcher struct {
 	configPath string
 	logger     *slog.Logger
-	manager    *reload.Manager
+	manager    ReloadManager
 }
 
-func New(configPath string, logger *slog.Logger, manager *reload.Manager) *Watcher {
+func New(configPath string, logger *slog.Logger, manager ReloadManager) *Watcher {
 	return &Watcher{
 		configPath: configPath,
 		logger:     logger,
@@ -33,6 +36,7 @@ func (w *Watcher) Start(ctx context.Context) error {
 	defer watcher.Close()
 
 	var debounce *time.Timer
+	var debounceC <-chan time.Time
 
 	configPath, err := filepath.Abs(w.configPath)
 	if err != nil {
@@ -53,6 +57,9 @@ func (w *Watcher) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			if debounce != nil {
+				debounce.Stop()
+			}
 			return nil
 
 		case event, ok := <-watcher.Events:
@@ -76,15 +83,19 @@ func (w *Watcher) Start(ctx context.Context) error {
 			if debounce != nil {
 				debounce.Stop()
 			}
-			debounce = time.AfterFunc(250*time.Millisecond, func() {
-				if err := w.manager.Reload(); err != nil {
-					observability.RecordRuntimeReload(false)
-					w.logger.Error(
-						"failed to reload configuration",
-						"error", err,
-					)
-				}
-			})
+			debounce = time.NewTimer(250 * time.Millisecond)
+			debounceC = debounce.C
+
+		case <-debounceC:
+			debounceC = nil
+
+			if err := w.manager.Reload(); err != nil {
+				observability.RecordRuntimeReload(false)
+				w.logger.Error(
+					"failed to reload configuration",
+					"error", err,
+				)
+			}
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
