@@ -57,6 +57,15 @@ func (m *Manager) Reload() error {
 		return err
 	}
 
-	m.server.Reload(rt)
+	if err := m.server.Reload(rt); err != nil {
+		// The runtime was successfully built, but the server
+		// rejected it because of its lifecycle state
+		rt.Stop()
+
+		observability.RecordRuntimeReload(false)
+
+		return err
+	}
+
 	return nil
 }
