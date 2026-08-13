@@ -845,16 +845,21 @@ func TestServerStart_UnexpectedServeFailureStopsServer(t *testing.T) {
 	// Wait until Start() has successfully created the listener
 	select {
 	case <-server.started:
-		// Expected
+		// Listener is ready
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for server to start")
+		t.Fatal("timed out waiting for server listener")
 	}
 
-	if got := serverState(server.state.Load()); got != serverRunning {
-		t.Fatalf(
-			"expected serverRunning after startup, got %v",
-			got,
-		)
+	deadline := time.Now().Add(2 * time.Second)
+
+	for serverState(server.state.Load()) != serverRunning {
+		if time.Now().After(deadline) {
+			t.Fatalf(
+				"server did not become running, got %v",
+				serverState(server.state.Load()),
+			)
+		}
+		time.Sleep(time.Millisecond)
 	}
 
 	// Simulate an unexpected external listener failure

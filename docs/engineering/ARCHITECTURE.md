@@ -250,19 +250,12 @@ When TLS is configured, the server wraps the listener with `tls.NewListener` so 
 
 Hot reload is handled by the reload manager and the config watcher.
 
-- [internal/reload/manager.go](./../../internal/reload/manager.go) builds a fresh runtime from the latest config.
-- [internal/configwatcher/watcher.go](./../../internal/configwatcher/watcher.go) watches the config file's directory using `fsnotify`.
-- Changes are debounced before a reload is triggered so a burst of writes does not cause repeated rebuilds.
+Torus supports zero-downtime configuration reloads through immutable runtime
+generations. The configuration watcher detects changes, the reload manager
+builds a new runtime, and the server atomically publishes it.
 
-### Reload sequence
-
-1. The watcher detects a config change.
-2. The reload manager parses and validates the YAML.
-3. A new runtime is built from the updated configuration.
-4. The proxy server swaps the runtime pointer.
-5. The previous runtime is retired only after active requests have released their references.
-
-This design supports zero-downtime reloads while keeping the runtime immutable across generations.
+For the complete runtime replacement and retirement lifecycle, see
+[Runtime Lifecycle](./architecture/runtime-lifecycle.md).
 
 ---
 
