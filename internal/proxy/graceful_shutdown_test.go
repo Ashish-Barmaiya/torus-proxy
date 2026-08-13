@@ -150,3 +150,210 @@ func waitForReady(t *testing.T, url string, timeout time.Duration) {
 	}
 	t.Fatalf("server did not become ready within %v", timeout)
 }
+
+// TestGracefulShutdown_ForceCancellation verifies that an in-flight request
+// is cancelled when the graceful shutdown deadline is exceeded.
+//
+// The test exercises the full cancellation path:
+//
+//	shutdown timeout → forceCancel → request context cancellation →
+//	upstream request exits → forced shutdown completes
+func TestGracefulShutdown_ForceCancellation(t *testing.T) {
+	requestStarted := make(chan struct{})
+	requestCanceled := make(chan struct{})
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+
+		<-r.Context().Done()
+
+		close(requestCanceled)
+	}))
+	defer backend.Close()
+
+	rt := buildRuntime(t, 1, []string{backend.URL})
+	server := NewServer(rt, testLogger)
+
+	startDone := make(chan error, 1)
+
+	go func() {
+		startDone <- server.Start("127.0.0.1:0")
+	}()
+
+	addr := server.WaitStarted()
+
+	requestDone := make(chan error, 1)
+
+	go func() {
+		resp, err := http.Get("http://" + addr + "/api")
+		if err != nil {
+			requestDone <- err
+			return
+		}
+
+		defer resp.Body.Close()
+
+		_, err = io.ReadAll(resp.Body)
+		requestDone <- err
+	}()
+
+	// Ensure the request has reached the upstream before shutdown begins.
+	select {
+	case <-requestStarted:
+		// Expected.
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for upstream request to start")
+	}
+
+	// Force the graceful shutdown deadline to expire while the request is
+	// still blocked in the upstream.
+	if err := server.Shutdown(100 * time.Millisecond); err != nil {
+		t.Fatalf("shutdown failed: %v", err)
+	}
+
+	// forceCancel() should propagate cancellation through the request context
+	// to the upstream ReverseProxy request.
+	select {
+	case <-requestCanceled:
+		// Expected.
+	case <-time.After(2 * time.Second):
+		t.Fatal("upstream request was not cancelled")
+	}
+
+	// The proxy request must also terminate.
+	select {
+	case <-requestDone:
+		// Expected.
+	case <-time.After(2 * time.Second):
+		t.Fatal("proxy request did not terminate after forced cancellation")
+	}
+
+	if got := serverState(server.state.Load()); got != serverStopped {
+		t.Fatalf(
+			"expected serverStopped after forced shutdown, got %v",
+			got,
+		)
+	}
+
+	if server.ready.Load() {
+		t.Fatal("server remained ready after forced shutdown")
+	}
+
+	// Start should return normally after http.Server.Shutdown().
+	select {
+	case err := <-startDone:
+		if err != nil {
+			t.Fatalf("server start returned unexpected error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("server Start did not return after shutdown")
+	}
+}
+
+// TestServerShutdown_MarksUnreadyBeforeDrain verifies that shutdown clears
+// readiness as soon as the server enters the shutting-down state, while
+// existing requests are still allowed to drain.
+func TestServerShutdown_MarksUnreadyBeforeDrain(t *testing.T) {
+	requestStarted := make(chan struct{})
+	releaseRequest := make(chan struct{})
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+
+		<-releaseRequest
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("done"))
+	}))
+	defer backend.Close()
+
+	rt := buildRuntime(t, 1, []string{backend.URL})
+	server := NewServer(rt, testLogger)
+	markServerRunningForTest(server)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+
+	addr := listener.Addr().String()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", server.Handler())
+
+	server.srv = &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	go func() {
+		_ = server.srv.Serve(listener)
+	}()
+
+	requestDone := make(chan error, 1)
+
+	go func() {
+		resp, err := http.Get("http://" + addr + "/api")
+		if err != nil {
+			requestDone <- err
+			return
+		}
+
+		defer resp.Body.Close()
+
+		_, err = io.ReadAll(resp.Body)
+		requestDone <- err
+	}()
+
+	// Ensure an existing request is in flight before shutdown begins
+	select {
+	case <-requestStarted:
+		// Expected
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for request to start")
+	}
+
+	shutdownStarted := make(chan error, 1)
+
+	go func() {
+		shutdownStarted <- server.Shutdown(5 * time.Second)
+	}()
+
+	// Wait until shutdown has entered its lifecycle transition
+	deadline := time.Now().Add(2 * time.Second)
+
+	for serverState(server.state.Load()) != serverShuttingDown {
+		if time.Now().After(deadline) {
+			t.Fatal("server did not enter shutting-down state")
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	// Readiness must be cleared immediately when shutdown begins, even though
+	// the existing request is still draining
+	if server.ready.Load() {
+		t.Fatal("server remained ready during shutdown")
+	}
+
+	// The active request must still be allowed to complete
+	close(releaseRequest)
+
+	select {
+	case err := <-requestDone:
+		if err != nil {
+			t.Fatalf("active request failed: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("active request did not complete")
+	}
+
+	select {
+	case err := <-shutdownStarted:
+		if err != nil {
+			t.Fatalf("shutdown failed: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("shutdown did not complete")
+	}
+}

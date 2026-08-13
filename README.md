@@ -4,7 +4,7 @@
 
 **A Layer 7 Reverse Proxy & Edge API Gateway built in Go.**
 
-High-performance traffic routing, health-aware load balancing, zero-downtime runtime reloading, and built-in observability implemented using Go's standard library.
+A systems-engineering project exploring networking, concurrency, runtime lifecycle, observability, and performance through a Layer 7 reverse proxy built in Go.
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Ashish-Barmaiya/torus-proxy)](https://github.com/Ashish-Barmaiya/torus-proxy/releases)
@@ -30,6 +30,7 @@ The long-term objective is not to compete directly with established production p
 ### Request Management
 
 - Layer 7 reverse proxy built on Go's standard library (`net/http/httputil.ReverseProxy`)
+- HTTP/1.1 reverse proxying
 - Longest-prefix routing with path-segment boundary matching
 - Round-robin load balancing across healthy upstreams
 - Active backend health checking
@@ -38,7 +39,7 @@ The long-term objective is not to compete directly with established production p
 ### Runtime
 
 - Zero-downtime configuration hot reload
-- Atomic runtime replacement with reference-counted retirement
+- Atomic runtime replacement with in-flight request and worker draining
 - Graceful shutdown with request draining
 
 ### Security & Observability
@@ -54,6 +55,14 @@ The long-term objective is not to compete directly with established production p
 - Automated benchmarking, statistical analysis, and reproducible benchmark reports
 
 > The original Node.js/TypeScript implementation is retained in the [`node/`](node/) directory as a historical reference.
+
+---
+
+## Current Limitations
+
+- HTTP/2 and HTTP/3 are not currently supported.
+- Single-process architecture; no multi-process hot restart or binary hot upgrade.
+- Torus is a systems-engineering and experimentation project, not a direct replacement for established production proxies.
 
 ---
 
@@ -185,7 +194,7 @@ curl http://localhost:8080/api/hello
                             ▼                       |         Config Watcher         |
                      net/http Server                |              │                 |
                             │                       |              ▼                 |
-                            |                       |    Build New Runtime Snapshot  |
+                            |                       |   Build New Runtime Generation |
                             |                       |              │                 |
                             |                       |              ▼                 |
                             |                       |         Atomic Pointer         |
@@ -197,7 +206,7 @@ curl http://localhost:8080/api/hello
                             │
                             ▼
       +----------------------------------------------------+
-      |             Immutable Runtime Snapshot             |
+      |            Immutable Runtime Generation            |
       |----------------------------------------------------+
       |        │               │                 |         |
       |        │               │                 |         |
@@ -221,9 +230,9 @@ curl http://localhost:8080/api/hello
   +—————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————+
   |  ** Request Path                            ** Reload Path                            ** Key Properties                     |
   |                                                                                                                             |
-  |  Client —> Server —> Runtime —>             Config change —> Build new rutime —>      * Zero-downtime configuration reloads |
-  |  Router —> Service —> Reverse Proxy —>      Atomic pointer swap —> New runtime        * Immutable runtime snapshots         |
-  |  Backend Pool                               serves subsequent requests                * Atomic Pointer swaps                |
+  |  Client —> Server —> Runtime —>             Config change —> Build new runtime —>     * Zero-downtime configuration reloads |
+  |  Router —> Service —> Load Balancer —>      Atomic pointer swap —> New runtime        * Immutable runtime snapshots         |
+  |  Reverse Proxy —>  Backend Pool             serves subsequent requests                * Atomic Pointer swaps                |
   |                                                                                       * Request isolation from reloads      |
   |                                                                                       * Graceful shutdown                   |
   |                                                                                                                             |
@@ -285,7 +294,8 @@ Torus is accompanied by extensive engineering documentation covering architectur
 | Documentation | Description |
 |--------------|-------------|
 | [`docs/benchmarking/`](./docs/benchmarking/) | Benchmark reports, methodology, automation framework, datasets, and statistical analysis |
-| [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture and runtime design |
+| [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture overview |
+| [`docs/engineering/architecture/runtime-lifecycle.md`](./docs/engineering/architecture/runtime-lifecycle.md) | Runtime Lifecycle architecture |
 | [`docs/engineering/decision-records/`](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) documenting major engineering decisions |
 
 The documentation is maintained alongside the source code to ensure that architectural decisions, performance evaluations, and implementation details remain reproducible and easy to understand.s.
