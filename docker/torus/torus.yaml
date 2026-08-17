@@ -1,0 +1,22 @@
+apiVersion: v2
+
+server:
+  addr: ":8080"
+
+health:
+  interval_ms: 5000
+  timeout_ms: 2000
+  path: /health
+
+observability:
+  enabled: true
+
+services:
+  - name: api
+    upstreams:
+      - http://backend-a:3001
+      - http://backend-b:3002
+
+routes:
+  - path: /api
+    service: api

@@ -1,0 +1,91 @@
+services:
+  torus:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+
+    command:
+      - -config
+      - /etc/torus/torus.yaml
+
+    volumes:
+      - ./torus/torus.yaml:/etc/torus/torus.yaml:ro
+
+    ports:
+      - "8080:8080"
+
+    depends_on:
+      - backend-a
+      - backend-b
+
+    restart: unless-stopped
+
+  backend-a:
+    build:
+      context: ..
+      dockerfile: Dockerfile.mock
+
+    command:
+      - "3001"
+
+    expose:
+      - "3001"
+
+    restart: unless-stopped
+
+  backend-b:
+    build:
+      context: ..
+      dockerfile: Dockerfile.mock
+
+    command:
+      - "3002"
+
+    expose:
+      - "3002"
+
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.7.1
+
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+
+    volumes:
+      - ./prometheus/full-stack.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+    ports:
+      - "9090:9090"
+
+    depends_on:
+      - torus
+
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.2.0
+
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
+    depends_on:
+      - prometheus
+
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:
