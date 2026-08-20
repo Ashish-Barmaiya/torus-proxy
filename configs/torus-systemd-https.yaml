@@ -1,0 +1,27 @@
+apiVersion: v2
+
+server:
+  addr: ":18443"
+
+tls:
+  cert_file: "/etc/torus/tls/cert.pem"
+  key_file: "/etc/torus/tls/key.pem"
+  min_version: "1.2"
+
+health:
+  interval_ms: 5000
+  timeout_ms: 2000
+  path: /health
+
+observability:
+  enabled: true
+
+services:
+  - name: api
+    upstreams:
+      - http://localhost:3001
+      - http://localhost:3002
+
+routes:
+  - path: /api
+    service: api
