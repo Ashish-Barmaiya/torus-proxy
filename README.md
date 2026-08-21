@@ -68,17 +68,19 @@ The long-term objective is not to compete directly with established production p
 
 ## Quick Start
 
+The Quick Start covers **native local development**. For Docker Compose or Linux/systemd deployment, see the [Deployment documentation](./docs/deployment/README.md).
+
 ### Prerequisites
 
 - Go 1.26.1 or newer
-- One or more backend HTTP services to proxy to
-- Optional: TLS certificate and key files if you want to serve HTTPS
+- One or more backend HTTP services
+- Optional: TLS certificate and key files for HTTPS
+- Docker, if you want the local Prometheus/Grafana stack
 
 ### 1. Clone
 
 ```bash
 git clone https://github.com/Ashish-Barmaiya/torus-proxy.git
-
 cd torus-proxy
 ```
 
@@ -88,7 +90,7 @@ cd torus-proxy
 go build -o torus ./cmd/torus
 ```
 
-For local testing, a simple mock backend is included:
+For local testing, the repository includes a mock backend:
 
 ```bash
 go run ./cmd/mock-backend 3001
@@ -102,12 +104,16 @@ go run ./cmd/mock-backend 3002
 
 ### 3. Configure
 
-The repository includes sample configuration files in [configs/](configs/):
+Torus is configured through a declarative YAML file.
 
-- [configs/torus-http.yaml](configs/torus-http.yaml) for an HTTP-only proxy
-- [configs/torus-https.yaml](configs/torus-https.yaml) for TLS termination
+Generic development configurations are provided under [`configs/`](configs/).
 
-A minimal HTTP example looks like this:
+For example:
+
+- [`configs/torus-http.yaml`](configs/torus-http.yaml) — HTTP development configuration
+- [`configs/torus-https.yaml`](configs/torus-https.yaml) — HTTPS development configuration
+
+A minimal HTTP configuration looks like:
 
 ```yaml
 apiVersion: v2
@@ -121,7 +127,7 @@ health:
   path: /health
 
 observability:
-  enabled: true # When enabled, Torus exposes Prometheus metrics at /metrics.
+  enabled: true
 
 services:
   - name: api
@@ -134,54 +140,163 @@ routes:
     service: api
 ```
 
-The HTTPS sample adds a `tls` section with certificate paths and a minimum version:
+See the [Configuration Guide](./docs/configuration/README.md) for the complete configuration model and field reference.
 
-```yaml
-server:
-  addr: ":8443"
-
-tls:
-  cert_file: "cert.pem"
-  key_file: "key.pem"
-  min_version: "1.2"
-```
-
-When starting the proxy, pass the config file with `-config` if you are not using the default file name:
+### 4. Run Torus
 
 ```bash
 ./torus -config configs/torus-http.yaml
 ```
 
-### 4. Run the proxy
-
-```bash
-./torus -config configs/torus-http.yaml
-```
-
-The proxy listens on the configured address and exposes:
+Torus listens on the address configured by `server.addr` and exposes:
 
 - `/readyz` — readiness endpoint
-- `/metrics` — Prometheus metrics (when observability is enabled)
+- `/metrics` — Prometheus metrics when observability is enabled
 
-To launch the local observability stack with Prometheus and Grafana:
+### 5. Optional local observability
+
+Start the repository's local Prometheus and Grafana stack:
 
 ```bash
 docker compose -f docker/compose.yml up -d
 ```
 
+Verify metrics:
+
+```bash
+curl http://localhost:8080/metrics
+```
+
+Prometheus:
+
+```text
+http://localhost:9090
+```
+
+Grafana:
+
+```text
+http://localhost:3000
+```
+
+See the [Native Deployment](./docs/deployment/native.md) guide for the complete local verification flow.
+
 ---
 
-## Verify
+## Configuration
 
-A request such as:
+Configuration and deployment are intentionally documented separately.
+
+The [Configuration Guide](./docs/configuration/README.md) covers:
+
+- API versioning
+- server/listener configuration
+- services and upstream backends
+- routing
+- health checks
+- TLS termination
+- Prometheus observability
+- configuration reloads
+- complete configuration reference
+
+Generic Torus configuration examples are located under:
+
+```text
+configs/
+```
+
+Docker Compose uses deployment-specific configuration and supporting assets under:
+
+```text
+docker/
+```
+
+The Docker files remain with the Docker deployment because the Compose files directly mount those assets.
+
+Repository-provided configurations and certificates are development/evaluation examples. Production deployments should use environment-specific configuration and credentials.
+
+---
+
+## Deployment
+
+Torus supports three deployment models:
+
+| Deployment | Intended use |
+|---|---|
+| Native | Local development, debugging, experimentation, and benchmarking |
+| Docker Compose | Reproducible full-stack development and evaluation |
+| Linux/systemd | Linux VM deployment and production-oriented operation |
+
+### Native
+
+Runs Torus directly as a host process.
+
+[Native Deployment](./docs/deployment/native.md)
+
+### Docker Compose
+
+Runs Torus, mock backends, Prometheus, and Grafana together.
+
+HTTP:
+
+```bash
+docker compose -f docker/compose.full.yml up --build -d
+```
+
+HTTPS:
+
+```bash
+docker compose -f docker/compose.full-https.yml up --build -d
+```
+
+This is a full-stack development/evaluation deployment, not a production architecture.
+
+[Docker Compose Deployment](./docs/deployment/docker.md)
+
+### Linux/systemd
+
+Runs Torus as a native Linux systemd service.
+
+```bash
+sudo ./deployments/systemd/install.sh
+```
+
+The installer is configuration-driven. It validates the supplied configuration, detects the configured listener and TLS requirements, validates TLS material when needed, builds Torus, installs the deployment, starts systemd, verifies the configured listener, and rolls back the previous installation if activation fails.
+
+[Linux/systemd Deployment](./docs/deployment/systemd.md)
+
+### Production
+
+For Linux VMs, systemd is the recommended production-oriented deployment model in v0.6.0.
+
+[Production Deployment](./docs/deployment/production.md)
+
+---
+
+## Verification
+
+For local HTTP:
 
 ```bash
 curl http://localhost:8080/readyz
-```
-
-```bash
 curl http://localhost:8080/api/hello
 ```
+
+For local HTTPS:
+
+```bash
+curl -k https://localhost:8443/readyz
+curl -k https://localhost:8443/api/hello
+```
+
+Use the actual listener configured in your Torus configuration.
+
+For deployment-specific verification, see:
+
+- [Native Deployment](./docs/deployment/native.md)
+- [Docker Compose Deployment](./docs/deployment/docker.md)
+- [Linux/systemd Deployment](./docs/deployment/systemd.md)
+- [Production Deployment](./docs/deployment/production.md)
 
 ---
 
@@ -289,26 +404,19 @@ Additional decision records are available in [`docs/engineering/decision-records
 
 ## Documentation
 
-Torus is accompanied by extensive engineering documentation covering architecture, benchmarking, and design decisions.
+Torus documentation is organized by engineering concern.
 
 | Documentation | Description |
-|--------------|-------------|
+|---|---|
+| [`docs/configuration/`](./docs/configuration/) | Configuration concepts, examples, validation, configuration reloads, and complete reference |
+| [`docs/deployment/`](./docs/deployment/) | Native, Docker Compose, Linux/systemd, and production deployment guides |
 | [`docs/benchmarking/`](./docs/benchmarking/) | Benchmark reports, methodology, automation framework, datasets, and statistical analysis |
 | [`docs/engineering/ARCHITECTURE.md`](./docs/engineering/ARCHITECTURE.md) | System architecture overview |
-| [`docs/engineering/architecture/runtime-lifecycle.md`](./docs/engineering/architecture/runtime-lifecycle.md) | Runtime Lifecycle architecture |
-| [`docs/engineering/decision-records/`](./docs/engineering/decision-records/) | Architecture Decision Records (ADRs) documenting major engineering decisions |
+| [`docs/engineering/architecture/runtime-lifecycle.md`](./docs/engineering/architecture/runtime-lifecycle.md) | Runtime lifecycle architecture |
+| [`docs/engineering/refactor/`](./docs/engineering/refactor/) | Detailed engineering refactor documentation |
+| [`docs/engineering/decision-records/`](./docs/engineering/decision-records/) | Architecture Decision Records documenting major engineering decisions |
 
-The documentation is maintained alongside the source code to ensure that architectural decisions, performance evaluations, and implementation details remain reproducible and easy to understand.s.
-
----
-
-The request is:
-
-- matched using longest-prefix routing
-- load-balanced using round robin
-- enriched with forwarding headers
-- forwarded to a healthy backend
-- proxied through Go's standard library reverse proxy
+Documentation is maintained alongside the source code so configuration semantics, deployment procedures, architectural decisions, refactors, and performance evaluations remain reproducible and versioned with the implementation.
 
 ---
 
@@ -316,23 +424,51 @@ The request is:
 
 ```text
 torus-proxy/
+
 ├── cmd/
 │   ├── torus/
 │   │   └── main.go
 │   └── mock-backend/
-|
-├── configs/             # sample YAML configs for HTTP and HTTPS
-├── docker/              # Prometheus and Grafana compose setup
-├── docs/                # architecture, ADRs, and benchmarking docs
-│   ├── benchmarking/          # Benchmarking framework and reports
-│   └── engineering/           # Architecture and ADRs
-|
-├── integration/         # integration tests for runtime, reload, shutdown, and observability
-├── internal/            # core proxy implementation
-├── node/                # reference Node.js/TypeScript implementation
+│       └── main.go
+│
+├── configs/                     # Generic and development Torus configurations
+│   ├── cert.pem
+│   ├── key.pem
+│   ├── torus-http*.yaml
+│   ├── torus-https.yaml
+│   └── torus-systemd-*.yaml
+│
+├── deployments/
+│   └── systemd/                 # Linux/systemd deployment assets and installer
+│       ├── install.sh
+│       └── torus.service
+│
+├── docker/                      # Docker Compose deployments and observability assets
+│   ├── compose.yml
+│   ├── compose.full.yml
+│   ├── compose.full-https.yml
+│   ├── torus/
+│   ├── certs/
+│   ├── prometheus/
+│   └── grafana/
+│
+├── docs/
+│   ├── configuration/           # Configuration documentation
+│   ├── deployment/              # Deployment documentation
+│   ├── benchmarking/            # Benchmarking framework and reports
+│   └── engineering/
+│       ├── architecture/        # Architecture documentation
+│       ├── decision-records/    # Architecture Decision Records
+│       └── refactor/            # Refactor documentation
+│
+├── integration/                 # Runtime, reload, shutdown, and observability integration tests
+├── internal/                    # Core proxy implementation
+├── node/                        # Reference Node.js/TypeScript implementation
 ├── Dockerfile.mock
 ├── dockerfile
 ├── go.mod
+├── go.sum
+├── LICENSE
 └── README.md
 ```
 ---
@@ -349,6 +485,16 @@ Run the test suite with Go's race detector:
 
 ```bash
 go test -race ./...
+```
+Run the race-enabled test suite repeatedly with randomized test order:
+```bash
+go test -race -count=50 -shuffle=on ./...
+```
+
+The repeated race-enabled run is useful for exposing concurrency defects that may not reproduce during a single test execution. Increasing the iteration count to 100 can provide additional confidence when investigating intermittent failures or race conditions:
+
+```bash
+go test -race -count=100 -shuffle=on ./...
 ```
 
 The test suite includes unit, component, and integration tests covering:
