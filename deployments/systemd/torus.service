@@ -1,0 +1,24 @@
+[Unit]
+Description=Torus Reverse Proxy
+Documentation=https://github.com/Ashish-Barmaiya/torus-proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+User=torus
+Group=torus
+
+ExecStart=/usr/local/bin/torus -config /etc/torus/torus.yaml
+
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
