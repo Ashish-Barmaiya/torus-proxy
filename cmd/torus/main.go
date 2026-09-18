@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 	"torus-proxy/internal/configwatcher"
+	"torus-proxy/internal/observability"
 	"torus-proxy/internal/proxy"
 	"torus-proxy/internal/reload"
 )
@@ -26,6 +27,24 @@ func main() {
 	)
 	flag.Parse()
 
+	tracingShutdown, err := observability.InitializeTracing(context.Background())
+	if err != nil {
+		logger.Error("failed to initialize tracing", "error", err)
+		os.Exit(1)
+	}
+
+	shutdownTracing := func() {
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			5*time.Second,
+		)
+		defer cancel()
+
+		if err := tracingShutdown(shutdownCtx); err != nil {
+			logger.Error("failed to shutdown tracing", "error", err)
+		}
+	}
+
 	// Build runtime manager
 	manager := reload.NewManager(
 		*configPath,
@@ -36,6 +55,7 @@ func main() {
 	rt, err := manager.BuildInitialRuntime()
 	if err != nil {
 		logger.Error("failed to build initial runtime", "error", err)
+		shutdownTracing()
 		os.Exit(1)
 	}
 
@@ -51,6 +71,7 @@ func main() {
 		if err := server.Start(rt.Addr); err != nil {
 			logger.Error("server stopped", "error", err)
 			cancel()
+			shutdownTracing()
 			os.Exit(1)
 		}
 	}()
@@ -85,9 +106,11 @@ func main() {
 	shutdownTimeout := 25 * time.Second
 	if err := server.Shutdown(shutdownTimeout); err != nil {
 		logger.Error("failed to shutdown server gracefully", "error", err)
+		shutdownTracing()
 		os.Exit(1)
 	}
 
+	shutdownTracing()
 	logger.Info("Server shutdown complete")
 	os.Exit(0)
 }
