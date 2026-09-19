@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 	"torus-proxy/internal/observability"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 type instrumentedTransport struct {
@@ -23,9 +25,15 @@ func newInstrumentedTransport(base http.RoundTripper, enabled bool, backend stri
 func (t *instrumentedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 
+	var clientSpan trace.Span
+	if t.enabled {
+		req, clientSpan = observability.StartHTTPClientSpan(req, t.backend)
+	}
+
 	resp, err := t.base.RoundTrip(req)
 
 	if t.enabled {
+		observability.FinishHTTPClientSpan(clientSpan, resp, err)
 		observability.RecordBackendRequest(t.backend)
 		observability.ObserveBackendRequestDuration(
 			t.backend,
