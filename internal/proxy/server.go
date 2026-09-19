@@ -14,6 +14,8 @@ import (
 	"torus-proxy/internal/observability"
 	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/transport"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 type serverState uint32
@@ -82,7 +84,21 @@ func (s *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer done()
 
+	var span trace.Span
+
+	if rt.ObservabilityEnabled {
+		r, span = observability.StartHTTPServerSpan(r, rt.Generation)
+
+		defer func() {
+			observability.FinishHTTPServerSpan(span, rec.Status())
+		}()
+	}
+
 	route, svc := rt.Router.Route(r.URL.Path)
+
+	if rt.ObservabilityEnabled {
+		observability.SetHTTPServerRoute(span, r.Method, route)
+	}
 
 	defer func() {
 		if !rt.ObservabilityEnabled {

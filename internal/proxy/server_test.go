@@ -16,6 +16,14 @@ import (
 	"torus-proxy/internal/runtime"
 	"torus-proxy/internal/service"
 	"torus-proxy/internal/upstream"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var testLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -51,6 +59,40 @@ func buildRuntime(t *testing.T, generation uint64, targetURLs []string) *runtime
 		router,
 		nil,
 		false,
+		nil,
+	)
+}
+
+// buildTracingRuntime creates a test runtime with observability enabled.
+func buildTracingRuntime(
+	t *testing.T,
+	generation uint64,
+	targetURLs []string,
+) *runtime.Runtime {
+	t.Helper()
+
+	var backends []*upstream.Backend
+
+	for _, url := range targetURLs {
+		b, err := upstream.NewBackend(url, false)
+		if err != nil {
+			t.Fatalf("failed to build test backend node: %v", err)
+		}
+
+		backends = append(backends, b)
+	}
+
+	svc := service.NewService(backends)
+
+	router := routing.NewRouter()
+	router.AddRoute("/api", svc)
+
+	return runtime.NewRuntime(
+		generation,
+		"",
+		router,
+		nil,
+		true,
 		nil,
 	)
 }
@@ -110,6 +152,285 @@ func TestProxyFlow_HeadersAndTracing(t *testing.T) {
 	}
 	if len(capturedTrackingID) != 36 {
 		t.Errorf("expected standard crypto UUID format (36 chars), got length %d", len(capturedTrackingID))
+	}
+}
+
+// TestProxyFlow_HTTPServerSpan verifies that proxied requests create the expected inbound HTTP server span.
+func TestProxyFlow_HTTPServerSpan(t *testing.T) {
+	previousProvider := otel.GetTracerProvider()
+	previousPropagator := otel.GetTextMapPropagator()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSpanProcessor(recorder),
+	)
+
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
+
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+		otel.SetTracerProvider(previousProvider)
+		otel.SetTextMapPropagator(previousPropagator)
+	})
+
+	backend := httptest.NewServer(http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer backend.Close()
+
+	proxy := NewServer(
+		buildTracingRuntime(
+			t,
+			7,
+			[]string{backend.URL},
+		),
+		testLogger,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"https://proxy.example/api",
+		nil,
+	)
+
+	req.Header.Set(
+		"traceparent",
+		"00-4bf92f3577b34da6a3ce929d3e0e4736-00f067aa0ba902b7-01",
+	)
+	req.Header.Set("X-Request-ID", "request-123")
+
+	w := httptest.NewRecorder()
+
+	proxy.Handler().ServeHTTP(w, req)
+
+	if got := w.Result().StatusCode; got != http.StatusOK {
+		t.Fatalf("expected 200, got %d", got)
+	}
+
+	spans := recorder.Ended()
+
+	if len(spans) != 1 {
+		t.Fatalf("recorded spans = %d, want 1", len(spans))
+	}
+
+	span := spans[0]
+
+	if span.Name() != "GET /api" {
+		t.Fatalf("span name = %q, want %q", span.Name(), "GET /api")
+	}
+
+	if span.SpanKind() != trace.SpanKindServer {
+		t.Fatalf(
+			"span kind = %v, want %v",
+			span.SpanKind(),
+			trace.SpanKindServer,
+		)
+	}
+
+	if got := span.Parent().TraceID().String(); got != "4bf92f3577b34da6a3ce929d3e0e4736" {
+		t.Fatalf(
+			"parent trace ID = %q, want %q",
+			got,
+			"4bf92f3577b34da6a3ce929d3e0e4736",
+		)
+	}
+
+	if value, ok := spanAttribute(span, "http.request.method"); !ok ||
+		value.AsString() != "GET" {
+		t.Fatalf(
+			"http.request.method = %v, want GET",
+			value,
+		)
+	}
+
+	if value, ok := spanAttribute(span, "url.path"); !ok ||
+		value.AsString() != "/api" {
+		t.Fatalf(
+			"url.path = %v, want /api",
+			value,
+		)
+	}
+
+	if value, ok := spanAttribute(span, "url.scheme"); !ok ||
+		value.AsString() != "https" {
+		t.Fatalf(
+			"url.scheme = %v, want https",
+			value,
+		)
+	}
+
+	if value, ok := spanAttribute(span, "http.route"); !ok ||
+		value.AsString() != "/api" {
+		t.Fatalf(
+			"http.route = %v, want /api",
+			value,
+		)
+	}
+
+	if value, ok := spanAttribute(span, "http.response.status_code"); !ok ||
+		value.AsInt64() != 200 {
+		t.Fatalf(
+			"http.response.status_code = %v, want 200",
+			value,
+		)
+	}
+
+	if value, ok := spanAttribute(span, "torus.runtime.generation"); !ok ||
+		value.AsInt64() != 7 {
+		t.Fatalf(
+			"torus.runtime.generation = %v, want 7",
+			value,
+		)
+	}
+
+	if value, ok := spanAttribute(span, "torus.request.id"); !ok ||
+		value.AsString() != "request-123" {
+		t.Fatalf(
+			"torus.request.id = %v, want request-123",
+			value,
+		)
+	}
+}
+
+// spanAttribute returns the value of a span attribute by key.
+func spanAttribute(
+	span sdktrace.ReadOnlySpan,
+	key string,
+) (attribute.Value, bool) {
+	for _, attr := range span.Attributes() {
+		if string(attr.Key) == key {
+			return attr.Value, true
+		}
+	}
+
+	return attribute.Value{}, false
+}
+
+func TestProxyFlow_HTTPServerSpan_Disabled(t *testing.T) {
+	previousProvider := otel.GetTracerProvider()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSpanProcessor(recorder),
+	)
+
+	otel.SetTracerProvider(provider)
+
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+		otel.SetTracerProvider(previousProvider)
+	})
+
+	backend := httptest.NewServer(http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer backend.Close()
+
+	proxy := NewServer(
+		buildRuntime(t, 1, []string{backend.URL}),
+		testLogger,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api",
+		nil,
+	)
+
+	w := httptest.NewRecorder()
+
+	proxy.Handler().ServeHTTP(w, req)
+
+	if got := w.Result().StatusCode; got != http.StatusOK {
+		t.Fatalf("expected 200, got %d", got)
+	}
+
+	if got := len(recorder.Ended()); got != 0 {
+		t.Fatalf("recorded spans = %d, want 0", got)
+	}
+}
+
+func TestProxyFlow_HTTPServerSpan_InternalServerError(t *testing.T) {
+	previousProvider := otel.GetTracerProvider()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSpanProcessor(recorder),
+	)
+
+	otel.SetTracerProvider(provider)
+
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+		otel.SetTracerProvider(previousProvider)
+	})
+
+	backend := httptest.NewServer(http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		http.Error(w, "backend error", http.StatusInternalServerError)
+	}))
+	defer backend.Close()
+
+	proxy := NewServer(
+		buildTracingRuntime(
+			t,
+			8,
+			[]string{backend.URL},
+		),
+		testLogger,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api",
+		nil,
+	)
+
+	w := httptest.NewRecorder()
+
+	proxy.Handler().ServeHTTP(w, req)
+
+	if got := w.Result().StatusCode; got != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", got)
+	}
+
+	spans := recorder.Ended()
+
+	if len(spans) != 1 {
+		t.Fatalf("recorded spans = %d, want 1", len(spans))
+	}
+
+	span := spans[0]
+
+	if span.Status().Code != codes.Error {
+		t.Fatalf(
+			"span status = %v, want %v",
+			span.Status().Code,
+			codes.Error,
+		)
+	}
+
+	value, ok := spanAttribute(span, "error.type")
+	if !ok {
+		t.Fatal("expected error.type attribute")
+	}
+
+	if got := value.AsString(); got != "500" {
+		t.Fatalf("error.type = %q, want %q", got, "500")
 	}
 }
 
